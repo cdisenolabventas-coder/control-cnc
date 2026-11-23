@@ -1,8 +1,8 @@
 /* Service worker OPCIONAL del Centro de Control CNC MX.
    Colócalo junto a index.html para que la app abra sin internet.
    Los datos nunca pasan por aquí: Google Drive y el inicio de sesión siempre van directo a la red. */
-const CACHE = 'ccmx-shell-v2';
-const SHELL = ['./', './index.html', './simulador.html',
+const CACHE = 'ccmx-shell-v3';
+const SHELL = ['./', './index.html', './simulador.html', './herramientas/tablas-charcuteria.html', './herramientas/cajas-mdf-laser.html', './herramientas/caja-vino.html', './herramientas/letreros-luminosos.html', './herramientas/vectorizador-cnc.html', './herramientas/muebles-parametricos.html', './herramientas/costillas-cnc.html',
   'https://cdn.tailwindcss.com',
   'https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js'];
 

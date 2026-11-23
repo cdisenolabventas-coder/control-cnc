@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Vectorizador CNC</title>
+<script src="https://cdn.tailwindcss.com/3.4.16"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+/* VOICE: herramienta CAM de taller — precisa, sobria, sin adornos
+   IDEA: la cama de una máquina CNC: lienzo con cuadrícula y trayectorias rojas
+   PICTURE: el propio lienzo de trabajo con comparador antes / después
+   COLOUR and TYPE: grafito profundo, naranja husillo como acento, rojo trayectoria; Archivo + JetBrains Mono
+   LAYOUT: barra superior, lienzo central, panel de 3 pasos a la derecha; apilado en móvil */
+:root{color-scheme:dark;--bg:#0e1013;--panel:#15181d;--panel2:#1b1f25;--line:#2a2f37;--ink:#e8eaed;--mut:#8f97a3;--acc:#ff7a1a;--red:#ff3b3b}
+*{box-sizing:border-box;min-width:0}
+html,body{background:var(--bg);color:var(--ink)}
+body{margin:0;font:14px/1.45 Archivo,system-ui,sans-serif}
+.mono{font-family:"JetBrains Mono",ui-monospace,monospace}
+.btn{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 12px;border:1px solid var(--line);background:var(--panel2);color:var(--ink);border-radius:8px;font-weight:600;font-size:13px;cursor:pointer;white-space:nowrap;transition:background .15s,border-color .15s}
+.btn:hover{border-color:#3d444f;background:#222730}
+.btn:focus-visible,.seg button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.btn.pri{background:var(--acc);border-color:var(--acc);color:#1a0d02}
+.btn.pri:hover{background:#ff8c3a}
+.btn.sm{height:30px;padding:0 9px;font-size:12px}
+.btn[aria-pressed=true]{background:#2b1c10;border-color:var(--acc);color:#ffb27a}
+.btn svg{width:16px;height:16px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--panel2)}
+.seg button{height:32px;padding:0 10px;font-size:12px;font-weight:600;color:var(--mut);background:transparent;border:0;cursor:pointer}
+.seg button[aria-pressed=true]{background:#2b1c10;color:#ffb27a}
+.sec{border-bottom:1px solid var(--line)}
+.sec>summary{list-style:none;cursor:pointer;padding:14px 18px;display:flex;align-items:center;gap:10px;font-weight:800;font-size:15px}
+.sec>summary::-webkit-details-marker{display:none}
+.sec>summary .n{width:24px;height:24px;border-radius:6px;background:var(--acc);color:#1a0d02;display:grid;place-items:center;font-size:13px}
+.sec>summary .chev{margin-left:auto;color:var(--mut);transition:transform .2s}
+.sec[open]>summary .chev{transform:rotate(90deg)}
+.body{padding:0 18px 18px;display:grid;gap:14px}
+.ctl{display:grid;gap:6px}
+.ctl .row{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.ctl label,.lbl{color:#c7ccd3;font-size:13px}
+.ctl output{font-family:"JetBrains Mono",monospace;font-size:12px;color:#ffb27a}
+.hint{color:var(--mut);font-size:12px;line-height:1.4}
+.grp{font-size:11px;font-weight:700;color:var(--mut);letter-spacing:.02em;margin-top:2px}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:22px;background:transparent;cursor:pointer}
+input[type=range]::-webkit-slider-runnable-track{height:4px;background:var(--line);border-radius:4px}
+input[type=range]::-moz-range-track{height:4px;background:var(--line);border-radius:4px}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;margin-top:-6px;border-radius:50%;background:var(--acc);border:3px solid #2b1c10}
+input[type=range]::-moz-range-thumb{width:12px;height:12px;border-radius:50%;background:var(--acc);border:3px solid #2b1c10}
+.chk{display:flex;align-items:center;gap:8px;font-size:13px;color:#c7ccd3;cursor:pointer}
+.chk input{width:16px;height:16px;accent-color:var(--acc)}
+select,input[type=number]{height:34px;background:var(--panel2);border:1px solid var(--line);color:var(--ink);border-radius:8px;padding:0 8px;font-size:13px;width:100%}
+input[type=number]{font-family:"JetBrains Mono",monospace}
+.card{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.sw{width:18px;height:18px;border-radius:4px;border:1px solid #0006;flex:none;box-shadow:inset 0 0 0 1px #fff2}
+.layer{display:flex;align-items:center;gap:8px;width:100%;padding:6px 8px;border-radius:8px;border:1px solid var(--line);background:var(--panel2);color:var(--ink);font-size:12px;cursor:pointer;text-align:left}
+.layer.off{opacity:.45;text-decoration:line-through}
+#wrap{position:relative;background:#0b0c0e;overflow:hidden;touch-action:none}
+#view{position:absolute;inset:0;width:100%;height:100%;display:block}
+#drop{position:absolute;inset:10px;border:2px dashed var(--acc);border-radius:14px;background:#ff7a1a14;display:none;place-items:center;font-weight:800;font-size:20px;color:#ffb27a;pointer-events:none}
+#drop.on{display:grid}
+.tb{position:absolute;left:10px;right:10px;top:10px;display:flex;flex-wrap:wrap;gap:8px;pointer-events:none}
+.tb>*{pointer-events:auto}
+.tb select{height:32px;width:auto;font-size:12px}
+.status{position:absolute;left:10px;right:10px;bottom:8px;display:flex;flex-wrap:wrap;gap:6px 14px;font-size:11px;color:var(--mut);pointer-events:none}
+.status span{background:#0e1013d9;padding:3px 7px;border-radius:6px}.status span:empty{display:none}
+#busy{color:#ffb27a;display:none}#busy.on{display:inline}
+#toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%) translateY(20px);background:#222730;border:1px solid var(--line);padding:10px 16px;border-radius:10px;font-size:13px;opacity:0;transition:.25s;pointer-events:none;z-index:50;max-width:90vw}
+#toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+.stat{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.stat div{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:6px 8px}
+.stat b{display:block;font-family:"JetBrains Mono",monospace;font-size:14px;color:var(--ink)}
+.stat small{color:var(--mut);font-size:11px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+/* respaldo de utilidades (por si el CDN de Tailwind no carga) */
+.hidden{display:none}.flex{display:flex}.grid{display:grid}.flex-col{flex-direction:column}.flex-wrap{flex-wrap:wrap}.flex-1{flex:1 1 0%}
+.items-center{align-items:center}.justify-between{justify-content:space-between}.justify-center{justify-content:center}.ml-auto{margin-left:auto}.mr-3{margin-right:.75rem}
+.gap-1{gap:.25rem}.gap-2{gap:.5rem}.gap-x-4{column-gap:1rem}.gap-y-2{row-gap:.5rem}.grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.px-2{padding-left:.5rem;padding-right:.5rem}.px-3{padding-left:.75rem;padding-right:.75rem}.py-2{padding-top:.5rem;padding-bottom:.5rem}.py-3{padding-top:.75rem;padding-bottom:.75rem}.px-\[18px\]{padding-left:18px;padding-right:18px}
+.border-b{border-bottom:1px solid var(--line)}.border-l{border-left:1px solid var(--line)}.w-full{width:100%}.min-h-0{min-height:0}.min-h-screen{min-height:100vh}
+.leading-tight{line-height:1.25}.font-extrabold{font-weight:800}.text-\[15px\]{font-size:15px}.text-\[12px\]{font-size:12px}.text-\[11px\]{font-size:11px}.h-\[62vh\]{height:62vh}
+@media (min-width:1024px){.lg\:h-screen{height:100vh}.lg\:overflow-hidden{overflow:hidden}.lg\:flex-row{flex-direction:row}.lg\:h-auto{height:auto}.lg\:flex-1{flex:1 1 0%}.lg\:w-\[360px\]{width:360px;flex:none}.lg\:overflow-y-auto{overflow-y:auto}}
+</style>
+</head>
+<body class="min-h-screen lg:h-screen flex flex-col lg:overflow-hidden">
+
+<header class="flex flex-wrap items-center gap-2 px-3 py-2 border-b" style="border-color:var(--line);background:var(--panel)">
+  <div class="flex items-center gap-2 mr-3">
+    <svg width="28" height="28" viewBox="0 0 28 28" aria-hidden="true"><rect width="28" height="28" rx="6" fill="#ff7a1a"/><path d="M6 20 C6 8 22 8 22 14 S10 22 14 6" fill="none" stroke="#1a0d02" stroke-width="2.4" stroke-linecap="round"/><circle cx="6" cy="20" r="2.2" fill="#1a0d02"/><circle cx="14" cy="6" r="2.2" fill="#1a0d02"/></svg>
+    <div class="leading-tight"><div class="font-extrabold text-[15px]">Vectorizador CNC</div><div class="text-[11px]" style="color:var(--mut)">Bitmap → PNG · SVG · DXF</div></div>
+  </div>
+  <label class="btn pri" for="file" title="Subir imagen (o arrastra / pega con Ctrl+V)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 16V4M6 10l6-6 6 6M4 20h16"/></svg>Subir imagen
+  </label>
+  <input id="file" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" class="hidden">
+  <button class="btn" id="sample" type="button">Logo de ejemplo</button>
+  <button class="btn" id="reset" type="button" title="Restablecer ajustes y selecciones">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M4 12a8 8 0 1 0 3-6.2M4 4v5h5"/></svg>Restablecer
+  </button>
+  <div class="flex gap-2 ml-auto">
+    <button class="btn" id="qPng" type="button">PNG</button>
+    <button class="btn" id="qSvg" type="button">SVG</button>
+    <button class="btn pri" id="qDxf" type="button">DXF</button>
+  </div>
+</header>
+
+<main class="flex-1 flex flex-col lg:flex-row min-h-0">
+  <section id="wrap" class="h-[62vh] lg:h-auto lg:flex-1">
+    <canvas id="view" aria-label="Área de trabajo"></canvas>
+    <div class="tb">
+      <div class="seg" role="group" aria-label="Herramienta">
+        <button id="tPan" type="button" aria-pressed="true" title="Mano: desplazar (H)">✋ Mano</button>
+        <button id="tWand" type="button" aria-pressed="false" title="Varita mágica: clic para volver transparente (V)">✦ Varita</button>
+      </div>
+      <div class="seg" role="group" aria-label="Zoom">
+        <button id="zOut" type="button" title="Alejar">−</button>
+        <button id="zPct" type="button" class="mono" title="100 %">100%</button>
+        <button id="zIn" type="button" title="Acercar">+</button>
+        <button id="zFit" type="button" title="Ajustar (F)">Ajustar</button>
+      </div>
+      <div class="seg items-center px-2 gap-1" style="color:var(--mut);font-size:12px">
+        <select id="viewA" aria-label="Vista izquierda"><option value="original">Original</option><option value="clean">Sin fondo</option><option value="vector">Vector</option></select>
+        <span>⇆</span>
+        <select id="viewB" aria-label="Vista derecha"><option value="original">Original</option><option value="clean">Sin fondo</option><option value="vector" selected>Vector</option></select>
+      </div>
+      <button class="btn sm" id="wire" type="button" aria-pressed="false" title="Modo esqueleto (W)">Esqueleto</button>
+    </div>
+    <div id="drop">Suelta la imagen aquí</div>
+    <div class="status mono">
+      <span id="stSize">—</span><span id="stPos">x — y —</span><span id="stPix"></span><span id="stNote" style="display:none"></span><span id="busy">procesando…</span>
+    </div>
+  </section>
+
+  <aside class="lg:w-[360px] lg:overflow-y-auto border-l" style="border-color:var(--line);background:var(--panel)">
+
+    <details class="sec" open>
+      <summary><span class="n">1</span>Limpieza y fondo<span class="chev">›</span></summary>
+      <div class="body">
+        <div class="flex gap-2 items-center">
+          <button class="btn pri" id="auto" type="button">Auto-eliminar fondo</button>
+          <span class="sw" id="autoSw" title="Color de fondo detectado"></span>
+          <span class="mono text-[12px]" id="autoHex" style="color:var(--mut)"></span>
+        </div>
+        <div class="card grid gap-2">
+          <div class="flex items-center justify-between gap-2">
+            <span class="lbl" id="opsLbl">Sin selecciones</span>
+            <div class="flex gap-1"><button class="btn sm" id="undo" type="button" title="Ctrl+Z">Deshacer</button><button class="btn sm" id="clearOps" type="button">Limpiar</button></div>
+          </div>
+          <div class="hint">Varita mágica: activa <b>✦ Varita</b> y haz clic sobre cualquier color de la imagen para volverlo transparente.</div>
+          <label class="chk"><input type="checkbox" id="contig" checked> Solo área conectada (contigua)</label>
+        </div>
+        <div class="ctl"><div class="row"><label for="tol">Tolerancia de color</label><output for="tol" id="tolO"></output></div><input type="range" id="tol" min="0" max="100" value="24"></div>
+        <div class="ctl"><div class="row"><label for="grow">Expandir / contraer máscara</label><output id="growO" data-u=" px"></output></div><input type="range" id="grow" min="-6" max="6" value="0"><div class="hint">Negativo elimina halos blancos del borde.</div></div>
+        <div class="ctl"><div class="row"><label for="feather">Suavizado de borde (feather)</label><output id="featherO" data-u=" px"></output></div><input type="range" id="feather" min="0" max="8" value="1"></div>
+        <div class="grp">ALTO CONTRASTE</div>
+        <label class="chk"><input type="checkbox" id="hc"> Convertir a blanco y negro (umbral)</label>
+        <div class="ctl"><div class="row"><label for="thr">Umbral de luminancia</label><output id="thrO"></output></div><input type="range" id="thr" min="1" max="254" value="150"><div class="hint">También define qué es “oscuro” al vectorizar en B/N.</div></div>
+        <div class="flex flex-wrap gap-x-4 gap-y-2">
+          <label class="chk"><input type="checkbox" id="inv"> Invertir</label>
+          <label class="chk"><input type="checkbox" id="hcDrop"> Blanco → transparente</label>
+        </div>
+      </div>
+    </details>
+
+    <details class="sec" open>
+      <summary><span class="n">2</span>Vectorización<span class="chev">›</span></summary>
+      <div class="body">
+        <div class="seg w-full" role="radiogroup" aria-label="Modo de trazado">
+          <button type="button" class="flex-1" id="mBw" aria-pressed="true">Blanco y negro</button>
+          <button type="button" class="flex-1" id="mColor" aria-pressed="false">Multicolor</button>
+        </div>
+        <div class="ctl" id="rowSrc"><label for="bwsrc">Qué se traza</label>
+          <select id="bwsrc"><option value="dark" selected>Tonos oscuros (grabado / corte)</option><option value="sil">Silueta completa (todo lo visible)</option></select>
+        </div>
+        <div class="ctl" id="rowK" style="display:none"><div class="row"><label for="kcol">Número de colores</label><output id="kcolO"></output></div><input type="range" id="kcol" min="2" max="8" value="3"></div>
+        <div class="grid gap-1" id="layers"></div>
+        <div class="ctl"><div class="row"><label for="speck">Supresión de ruido</label><output id="speckO" data-u=" px²"></output></div><input type="range" id="speck" min="0" max="400" value="12"><div class="hint">Ignora manchas e islas menores a este tamaño.</div></div>
+        <div class="ctl"><div class="row"><label for="eps">Precisión del contorno</label><output id="epsO" data-u=" px" data-f="1"></output></div><input type="range" id="eps" min="0.3" max="4" step="0.1" value="1"><div class="hint">Menor = más fiel y más nodos. Mayor = más limpio.</div></div>
+        <div class="ctl"><div class="row"><label for="corner">Umbral de esquina</label><output id="cornerO" data-u="°"></output></div><input type="range" id="corner" min="0" max="180" value="55"><div class="hint">Bajo = esquinas vivas · Alto = todo redondeado.</div></div>
+        <div class="ctl"><div class="row"><label for="smooth">Suavizado de curvas (Bézier)</label><output id="smoothO" data-u=" %"></output></div><input type="range" id="smooth" min="0" max="100" value="100"></div>
+        <div class="stat"><div><b id="sPaths">0</b><small>trazos</small></div><div><b id="sNodes">0</b><small>nodos</small></div><div><b id="sLayers">0</b><small>capas</small></div></div>
+      </div>
+    </details>
+
+    <details class="sec" open>
+      <summary><span class="n">3</span>Escala y exportación<span class="chev">›</span></summary>
+      <div class="body">
+        <div class="grid grid-cols-2 gap-2">
+          <div class="ctl"><label for="mmW">Ancho (mm)</label><input type="number" id="mmW" min="1" step="0.1" value="150"></div>
+          <div class="ctl"><label for="mmH">Alto (mm)</label><input type="number" id="mmH" min="1" step="0.1" value="0"></div>
+        </div>
+        <div class="hint mono" id="scaleInfo">—</div>
+        <div class="grp">PNG</div>
+        <div class="grid grid-cols-2 gap-2">
+          <select id="pngSrc" aria-label="Fuente del PNG"><option value="clean">Imagen sin fondo</option><option value="vector">Vector renderizado</option></select>
+          <div class="flex items-center gap-1"><input type="number" id="dpi" value="300" min="72" max="1200" step="1" aria-label="DPI"><span class="hint">DPI</span></div>
+        </div>
+        <label class="chk"><input type="checkbox" id="pngCrop" checked> Recortar al contenido</label>
+        <button class="btn" id="dPng" type="button">Descargar PNG transparente</button>
+        <div class="grp">SVG</div>
+        <select id="svgStyle" aria-label="Estilo SVG"><option value="fill">Relleno (grabado, impresión, Illustrator)</option><option value="stroke">Solo contorno 0.1 mm (corte láser)</option></select>
+        <div class="flex gap-2"><button class="btn flex-1 justify-center" id="dSvg" type="button">Descargar SVG</button><button class="btn" id="cSvg" type="button">Copiar</button></div>
+        <div class="grp">DXF (CNC)</div>
+        <div class="grid grid-cols-2 gap-2">
+          <select id="dxfFmt" aria-label="Formato DXF"><option value="lw">LWPOLYLINE (R2000)</option><option value="r12">POLYLINE (R12)</option></select>
+          <div class="flex items-center gap-1"><input type="number" id="dxfRes" value="0.2" min="0.02" max="2" step="0.01" aria-label="Resolución de curva"><span class="hint">mm</span></div>
+        </div>
+        <div class="hint">Curvas convertidas a polilíneas cerradas con cuerda máx. indicada. Unidades mm, origen (0,0) abajo-izquierda. Contornos exteriores CCW, huecos CW.</div>
+        <div class="flex gap-2"><button class="btn pri flex-1 justify-center" id="dDxf" type="button">Descargar DXF</button><button class="btn" id="cDxf" type="button">Copiar</button></div>
+        <div class="hint" id="dlNote"></div>
+      </div>
+    </details>
+    <p class="hint px-[18px] py-3">Todo se procesa en tu navegador; la imagen no sale de tu equipo. Atajos: H mano · V varita · F ajustar · W esqueleto · Ctrl+Z deshacer.</p>
+  </aside>
+</main>
+<div id="toast" role="status"></div>
+
+<script>
+{
+const $=id=>document.getElementById(id);
+const cv=$('view'),ctx=cv.getContext('2d'),wrap=$('wrap');
+const S={src:null,w:0,h:0,data:null,name:'logo',ops:[],keep:null,proc:document.createElement('canvas'),layers:[],layerOff:new Set(),
+  bbox:null,stats:{paths:0,nodes:0},v:{z:1,x:0,y:0},split:.5,tool:'pan',wire:false,mode:'bw',mmW:150,note:''};
+let DPR=1,CW=0,CH=0,DL=null;
+
+/* ---------- utilidades ---------- */
+const num=id=>+$(id).value, chk=id=>$(id).checked;
+const lum=(d,i)=>0.299*d[i*4]+0.587*d[i*4+1]+0.114*d[i*4+2];
+const hex=c=>'#'+c.map(v=>Math.max(0,Math.min(255,Math.round(v))).toString(16).padStart(2,'0')).join('');
+let toastT;function toast(m){const t=$('toast');t.textContent=m;t.classList.add('on');clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('on'),3200)}
+function P(){return{tol:num('tol'),contig:chk('contig'),grow:num('grow'),feather:num('feather'),hc:chk('hc'),thr:num('thr'),inv:chk('inv'),hcDrop:chk('hcDrop'),
+  mode:S.mode,src:$('bwsrc').value,k:num('kcol'),speck:num('speck'),eps:num('eps'),corner:num('corner'),smooth:num('smooth')/100}}
+
+/* ---------- carga de imagen ---------- */
+function setSource(img,name){
+  const MAX=2000,w0=img.naturalWidth||img.width,h0=img.naturalHeight||img.height;
+  if(!w0||!h0){toast('Imagen vacía');return}
+  const sc=Math.min(1,MAX/Math.max(w0,h0)),c=document.createElement('canvas');
+  c.width=Math.max(1,Math.round(w0*sc));c.height=Math.max(1,Math.round(h0*sc));
+  const g=c.getContext('2d',{willReadFrequently:true});g.drawImage(img,0,0,c.width,c.height);
+  Object.assign(S,{src:c,w:c.width,h:c.height,data:g.getImageData(0,0,c.width,c.height).data,name:name||'logo',layerOff:new Set()});
+  S.note=sc<1?`reducida de ${w0}×${h0} para procesar`:'';
+  S.proc.width=S.w;S.proc.height=S.h;
+  const a=autoOp();S.ops=a?[a]:[];
+  fit();schedule(1);
+}
+function loadFile(f){
+  if(!f||!/^image\//.test(f.type)){toast('Formato no soportado: usa PNG, JPG, WEBP o SVG');return}
+  const url=URL.createObjectURL(f),im=new Image();
+  im.onload=()=>{setSource(im,f.name.replace(/\.[^.]+$/,'')||'logo');URL.revokeObjectURL(url)};
+  im.onerror=()=>toast('No se pudo leer la imagen');im.src=url;
+}
+
+/* ---------- paso 1: fondo ---------- */
+function autoOp(){
+  const {w,h,data}=S,hist=new Map();
+  const add=(x,y)=>{const i=(y*w+x)*4;if(data[i+3]<128)return;const k=(data[i]>>4)<<8|(data[i+1]>>4)<<4|(data[i+2]>>4);let e=hist.get(k);if(!e){e=[0,0,0,0];hist.set(k,e)}e[0]++;e[1]+=data[i];e[2]+=data[i+1];e[3]+=data[i+2]};
+  for(let x=0;x<w;x++){add(x,0);add(x,h-1)}for(let y=0;y<h;y++){add(0,y);add(w-1,y)}
+  let b=null;for(const e of hist.values())if(!b||e[0]>b[0])b=e;
+  return b?{t:'auto',color:[b[1]/b[0],b[2]/b[0],b[3]/b[0]]}:null;
+}
+function computeMask(p){
+  const {w,h,data:d}=S,n=w*h,keep=new Uint8Array(n);
+  for(let i=0;i<n;i++)keep[i]=d[i*4+3]>=128?1:0;
+  const T=441.7*Math.pow(p.tol/100,1.5),T2=T*T,stack=new Int32Array(n);
+  for(const op of S.ops){
+    const c=op.color,m=i=>{const j=i*4,a=d[j]-c[0],b=d[j+1]-c[1],e=d[j+2]-c[2];return a*a+b*b+e*e<=T2};
+    if(!p.contig){for(let i=0;i<n;i++)if(keep[i]&&m(i))keep[i]=0;continue}
+    const seen=new Uint8Array(n);let sp=0;
+    const push=i=>{if(!seen[i]){seen[i]=1;if(m(i))stack[sp++]=i}};
+    if(op.t==='auto'){for(let x=0;x<w;x++){push(x);push((h-1)*w+x)}for(let y=0;y<h;y++){push(y*w);push(y*w+w-1)}}
+    else{const i=op.y*w+op.x;seen[i]=1;stack[sp++]=i}
+    while(sp){const i=stack[--sp];keep[i]=0;const x=i%w;if(x>0)push(i-1);if(x<w-1)push(i+1);if(i>=w)push(i-w);if(i<n-w)push(i+w)}
+  }
+  return keep;
+}
+function morph(m,w,h,dil){
+  const o=new Uint8Array(m.length);
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+    const i=y*w+x;let r=m[i];
+    if(dil?!r:r){let f=dil?0:1;
+      for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){const xx=x+dx,yy=y+dy,q=(xx>=0&&yy>=0&&xx<w&&yy<h)?m[yy*w+xx]:0;if(dil&&q)f=1;if(!dil&&!q)f=0}
+      r=f}
+    o[i]=r}
+  return o;
+}
+function boxBlur(a,w,h,r){
+  const t=new Float32Array(a.length),d=2*r+1,cx=v=>v<0?0:v>=w?w-1:v,cy=v=>v<0?0:v>=h?h-1:v;
+  for(let pass=0;pass<2;pass++){
+    for(let y=0;y<h;y++){const row=y*w;let s=0;for(let x=-r;x<=r;x++)s+=a[row+cx(x)];
+      for(let x=0;x<w;x++){t[row+x]=s/d;s+=a[row+cx(x+r+1)]-a[row+cx(x-r)]}}
+    for(let x=0;x<w;x++){let s=0;for(let y=-r;y<=r;y++)s+=t[cy(y)*w+x];
+      for(let y=0;y<h;y++){a[y*w+x]=s/d;s+=t[cy(y+r+1)*w+x]-t[cy(y-r)*w+x]}}
+  }
+}
+function runMask(p){
+  const {w,h,data:d}=S,n=w*h;let keep=computeMask(p);
+  for(let i=0;i<Math.abs(p.grow);i++)keep=morph(keep,w,h,p.grow>0);
+  if(p.hc&&p.hcDrop)for(let i=0;i<n;i++)if(keep[i]&&(lum(d,i)<p.thr)===p.inv)keep[i]=0;
+  S.keep=keep;
+  const a=new Float32Array(n);for(let i=0;i<n;i++)a[i]=keep[i]*255;
+  if(p.feather>0)boxBlur(a,w,h,p.feather);
+  const img=new ImageData(w,h),o=img.data;
+  for(let i=0;i<n;i++){const j=i*4;let r=d[j],g=d[j+1],b=d[j+2];
+    if(p.hc){const v=(lum(d,i)<p.thr)!==p.inv?0:255;r=g=b=v}
+    o[j]=r;o[j+1]=g;o[j+2]=b;o[j+3]=keep[i]?Math.min(d[j+3],a[i]*1.6):0}
+  S.proc.getContext('2d').putImageData(img,0,0);
+  const au=S.ops.find(o=>o.t==='auto');
+  $('autoSw').style.background=au?hex(au.color):'transparent';$('autoHex').textContent=au?hex(au.color):'';
+  const nw=S.ops.filter(o=>o.t==='wand').length;
+  $('opsLbl').textContent=(au?'Auto':'')+(au&&nw?' + ':'')+(nw?nw+' varita':'')||'Sin selecciones';
+}
+
+/* ---------- paso 2: vectorización ---------- */
+function kmeans(K){
+  const {w,h,data:d,keep}=S,n=w*h,idx=[],labels=new Int8Array(n).fill(-1);
+  for(let i=0;i<n;i++)if(keep[i])idx.push(i);
+  if(!idx.length)return{centers:[],labels};
+  const step=Math.max(1,Math.floor(idx.length/30000)),sm=[];
+  for(let j=0;j<idx.length;j+=step){const q=idx[j]*4;sm.push([d[q],d[q+1],d[q+2]])}
+  const dist=(a,b)=>(a[0]-b[0])**2+(a[1]-b[1])**2+(a[2]-b[2])**2;
+  const hb=new Map();for(const s of sm){const k=(s[0]>>3)<<10|(s[1]>>3)<<5|(s[2]>>3);let e=hb.get(k);if(!e){e=[0,0,0,0];hb.set(k,e)}e[0]++;e[1]+=s[0];e[2]+=s[1];e[3]+=s[2]}
+  const minC=Math.max(3,sm.length*.004),cand=[...hb.values()].filter(e=>e[0]>=minC).sort((a,b)=>b[0]-a[0]).map(e=>[e[1]/e[0],e[2]/e[0],e[3]/e[0]]);
+  const C=[cand.length?cand[0]:sm[0]];
+  while(C.length<K&&cand.length){let bd=-1,bi=null;for(const s of cand){let m=Infinity;for(const c of C)m=Math.min(m,dist(s,c));if(m>bd){bd=m;bi=s}}if(bd<64)break;C.push(bi.slice())}
+  for(let it=0;it<12;it++){const acc=C.map(()=>[0,0,0,0]);
+    for(const s of sm){let bk=0,bd=Infinity;for(let k=0;k<C.length;k++){const q=dist(s,C[k]);if(q<bd){bd=q;bk=k}}const a=acc[bk];a[0]+=s[0];a[1]+=s[1];a[2]+=s[2];a[3]++}
+    acc.forEach((a,k)=>{if(a[3])C[k]=[a[0]/a[3],a[1]/a[3],a[2]/a[3]]})}
+  for(const i of idx){const q=i*4;let bk=0,bd=Infinity;for(let k=0;k<C.length;k++){const c=C[k],a=d[q]-c[0],b=d[q+1]-c[1],e=d[q+2]-c[2],v=a*a+b*b+e*e;if(v<bd){bd=v;bk=k}}labels[i]=bk}
+  return{centers:C,labels};
+}
+/* Seguimiento de bordes de píxel (crack following): contornos cerrados exactos, interior a la derecha */
+function traceLayer(b,w,h,p){
+  const W=w+1,out=new Uint8Array(W*(h+1));
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++){const i=y*w+x;if(!b[i])continue;
+    if(y===0||!b[i-w])out[y*W+x]|=1;
+    if(x===w-1||!b[i+1])out[y*W+x+1]|=2;
+    if(y===h-1||!b[i+w])out[(y+1)*W+x+1]|=4;
+    if(x===0||!b[i-1])out[(y+1)*W+x]|=8}
+  const DX=[1,0,-1,0],DY=[0,W,0,-W],polys=[];
+  for(let s=0;s<out.length;s++){
+    while(out[s]){
+      let v=s,dd=out[s]&1?0:out[s]&2?1:out[s]&4?2:3;const X=[],Y=[];
+      for(;;){X.push(v%W);Y.push((v/W)|0);out[v]&=~(1<<dd);v+=DX[dd]+DY[dd];
+        if(v===s)break;const m=out[v];if(!m)break;
+        const r=(dd+1)&3,l=(dd+3)&3;dd=m&(1<<r)?r:m&(1<<dd)?dd:m&(1<<l)?l:(dd+2)&3}
+      const n=X.length;if(n<4)continue;
+      let A=0;for(let i=0;i<n;i++){const j=(i+1)%n;A+=X[i]*Y[j]-X[j]*Y[i]}A/=2;
+      if(Math.abs(A)<Math.max(1,p.speck))continue;
+      const sx=new Float64Array(n),sy=new Float64Array(n);
+      for(let i=0;i<n;i++){const a=(i-1+n)%n,c=(i+1)%n;sx[i]=(X[a]+2*X[i]+X[c])/4;sy[i]=(Y[a]+2*Y[i]+Y[c])/4}
+      const keep=rdpClosed(sx,sy,p.eps);if(keep.length<3)continue;
+      polys.push(keep.map(i=>[sx[i],sy[i]]));
+    }
+  }
+  return polys;
+}
+/* Ramer–Douglas–Peucker para polígono cerrado (iterativo) */
+function rdpClosed(X,Y,eps){
+  const n=X.length;let f=0,fd=-1;
+  for(let i=1;i<n;i++){const d=(X[i]-X[0])**2+(Y[i]-Y[0])**2;if(d>fd){fd=d;f=i}}
+  const k=new Uint8Array(n);k[0]=k[f]=1;const e2=eps*eps,st=[[0,f],[f,n]];
+  while(st.length){const [a,b]=st.pop(),x0=X[a],y0=Y[a],x1=X[b%n],y1=Y[b%n],dx=x1-x0,dy=y1-y0,L2=dx*dx+dy*dy;let md=-1,mi=-1;
+    for(let i=a+1;i<b;i++){let q;if(L2<1e-12)q=(X[i]-x0)**2+(Y[i]-y0)**2;else{const c=dx*(Y[i]-y0)-dy*(X[i]-x0);q=c*c/L2}if(q>md){md=q;mi=i}}
+    if(md>e2){k[mi]=1;st.push([a,mi],[mi,b])}}
+  const r=[];for(let i=0;i<n;i++)if(k[i])r.push(i);return r;
+}
+function vectorize(p){
+  const {w,h,data:d,keep}=S,n=w*h,raw=[];
+  if(p.mode==='bw'){const b=new Uint8Array(n);for(let i=0;i<n;i++)if(keep[i])b[i]=p.src==='sil'?1:((lum(d,i)<p.thr)!==p.inv?1:0);raw.push({rgb:[17,17,17],count:1,b})}
+  else{const {centers,labels}=kmeans(p.k);
+    centers.forEach((c,k)=>{const b=new Uint8Array(n);let cnt=0;for(let i=0;i<n;i++)if(labels[i]===k){b[i]=1;cnt++}raw.push({rgb:c,count:cnt,b})});
+    raw.sort((a,b)=>b.count-a.count)}
+  S.layers=raw.filter(L=>L.count>0).map(L=>({rgb:L.rgb.map(Math.round),hex:hex(L.rgb),polys:traceLayer(L.b,w,h,p)}));
+  renderLayers();
+}
+/* Bézier tipo Catmull-Rom con detección de esquinas */
+function curveSegs(P,cd,k){
+  const n=P.length,corner=new Array(n),T=new Array(n);
+  for(let i=0;i<n;i++){const a=P[(i-1+n)%n],b=P[i],c=P[(i+1)%n],ux=b[0]-a[0],uy=b[1]-a[1],vx=c[0]-b[0],vy=c[1]-b[1],lu=Math.hypot(ux,uy)||1,lv=Math.hypot(vx,vy)||1;
+    const ang=Math.acos(Math.max(-1,Math.min(1,(ux*vx+uy*vy)/(lu*lv))))*180/Math.PI;corner[i]=k<=0||ang>cd;
+    const tx=c[0]-a[0],ty=c[1]-a[1],lt=Math.hypot(tx,ty)||1;T[i]=[tx/lt,ty/lt]}
+  const segs=[];
+  for(let i=0;i<n;i++){const j=(i+1)%n,a=P[i],b=P[j];
+    if(corner[i]&&corner[j]){segs.push({line:1,p0:a,p1:b});continue}
+    const hh=Math.hypot(b[0]-a[0],b[1]-a[1])/3*k;
+    const c1=corner[i]?[a[0]+(b[0]-a[0])/3,a[1]+(b[1]-a[1])/3]:[a[0]+T[i][0]*hh,a[1]+T[i][1]*hh];
+    const c2=corner[j]?[b[0]-(b[0]-a[0])/3,b[1]-(b[1]-a[1])/3]:[b[0]-T[j][0]*hh,b[1]-T[j][1]*hh];
+    segs.push({line:0,p0:a,c1,c2,p1:b})}
+  return{segs,corner};
+}
+function buildCurves(p){
+  const bb=[Infinity,Infinity,-Infinity,-Infinity];let paths=0,nodes=0,on=0;
+  S.layers.forEach((L,li)=>{L.on=!S.layerOff.has(li);L.cv=[];const P2=new Path2D();
+    for(const poly of L.polys){const c=curveSegs(poly,p.corner,p.smooth);L.cv.push(c);
+      P2.moveTo(poly[0][0],poly[0][1]);for(const s of c.segs)s.line?P2.lineTo(s.p1[0],s.p1[1]):P2.bezierCurveTo(s.c1[0],s.c1[1],s.c2[0],s.c2[1],s.p1[0],s.p1[1]);P2.closePath();
+      if(L.on){paths++;nodes+=poly.length;const ext=(x,y)=>{if(x<bb[0])bb[0]=x;if(y<bb[1])bb[1]=y;if(x>bb[2])bb[2]=x;if(y>bb[3])bb[3]=y};
+        for(const s of c.segs){ext(s.p0[0],s.p0[1]);if(!s.line)for(let k=1;k<8;k++){const t=k/8,u=1-t,a=u*u*u,b=3*u*u*t,cc=3*u*t*t,e=t*t*t;ext(a*s.p0[0]+b*s.c1[0]+cc*s.c2[0]+e*s.p1[0],a*s.p0[1]+b*s.c1[1]+cc*s.c2[1]+e*s.p1[1])}}}}
+    if(L.on)on++;L.path=P2});
+  S.bbox=bb[0]<Infinity&&bb[2]>bb[0]&&bb[3]>bb[1]?bb:null;S.stats={paths,nodes};
+  $('sPaths').textContent=paths.toLocaleString('es-MX');$('sNodes').textContent=nodes.toLocaleString('es-MX');$('sLayers').textContent=on;
+  updateDims();
+}
+function renderLayers(){
+  const el=$('layers');
+  if(S.mode==='bw'){el.innerHTML='';return}
+  el.innerHTML=S.layers.map((L,i)=>`<button type="button" class="layer${S.layerOff.has(i)?' off':''}" data-i="${i}"><span class="sw" style="background:${L.hex}"></span><span class="mono">${L.hex}</span><span style="margin-left:auto;color:var(--mut)">${L.polys.length} trazos · ${S.layerOff.has(i)?'oculta':'visible'}</span></button>`).join('');
+}
+$('layers').addEventListener('click',e=>{const b=e.target.closest('.layer');if(!b)return;const i=+b.dataset.i;S.layerOff.has(i)?S.layerOff.delete(i):S.layerOff.add(i);renderLayers();schedule(3)});
+
+/* ---------- canalización con prioridad ---------- */
+let pend=9,timer=0;
+function schedule(l){pend=Math.min(pend,l);$('busy').classList.add('on');clearTimeout(timer);timer=setTimeout(run,40)}
+function run(){
+  if(!S.data){pend=9;return}
+  const p=P(),t0=performance.now();
+  try{if(pend<=1)runMask(p);if(pend<=2)vectorize(p);if(pend<=3)buildCurves(p)}catch(err){console.error(err);toast('Error al procesar: '+err.message)}
+  pend=9;$('busy').classList.remove('on');draw();
+  $('stSize').textContent=`${S.w}×${S.h} px · ${Math.round(performance.now()-t0)} ms`;
+  const nt=$('stNote');nt.style.display=S.note?'':'none';nt.textContent=S.note;
+}
+
+/* ---------- paso 3: escala ---------- */
+function geom(){const b=S.bbox,bw=b[2]-b[0],bh=b[3]-b[1],s=S.mmW/bw;return{s,bx:b[0],by:b[1],W:S.mmW,H:bh*s}}
+function updateDims(){
+  if(!S.bbox){$('scaleInfo').textContent='Sin vectores';return}
+  const g=geom();if(document.activeElement!==$('mmW'))$('mmW').value=+g.W.toFixed(2);if(document.activeElement!==$('mmH'))$('mmH').value=+g.H.toFixed(2);
+  const dpi=25.4/g.s;
+  $('scaleInfo').innerHTML=`${g.W.toFixed(2)} × ${g.H.toFixed(2)} mm · ${g.s.toFixed(4)} mm/px · ${dpi.toFixed(0)} DPI efectivos${dpi<100?' <span style="color:#ffb27a">— resolución baja: usa una imagen más grande para mayor fidelidad</span>':''}`;
+}
+$('mmW').addEventListener('input',()=>{const v=num('mmW');if(v>0){S.mmW=v;updateDims()}});
+$('mmH').addEventListener('input',()=>{const v=num('mmH');if(v>0&&S.bbox){const b=S.bbox;S.mmW=v*(b[2]-b[0])/(b[3]-b[1]);updateDims()}});
+
+/* ---------- exportación ---------- */
+const layerName=(L,i)=>S.mode==='bw'?'CORTE':`C${i+1}_${L.hex.slice(1).toUpperCase()}`;
+const ACI=[[1,255,0,0],[2,255,255,0],[3,0,255,0],[4,0,255,255],[5,0,0,255],[6,255,0,255],[7,0,0,0],[8,128,128,128],[9,192,192,192],[30,255,127,0],[7,255,255,255]];
+const aciOf=c=>{let b=7,bd=Infinity;for(const a of ACI){const q=(a[1]-c[0])**2+(a[2]-c[1])**2+(a[3]-c[2])**2;if(q<bd){bd=q;b=a[0]}}return b};
+function needVec(){if(!S.bbox){toast('No hay vectores para exportar');return false}return true}
+function svgText(){
+  const {s,bx,by,W,H}=geom(),f=v=>String(+v.toFixed(3)),X=x=>f((x-bx)*s),Y=y=>f((y-by)*s),stroke=$('svgStyle').value==='stroke';
+  let o=`<?xml version="1.0" encoding="UTF-8"?>\n<!-- Vectorizador CNC · ${f(W)} x ${f(H)} mm -->\n<svg xmlns="http://www.w3.org/2000/svg" width="${f(W)}mm" height="${f(H)}mm" viewBox="0 0 ${f(W)} ${f(H)}">\n`;
+  S.layers.forEach((L,li)=>{if(!L.on||!L.polys.length)return;let d='';
+    L.polys.forEach((poly,pi)=>{d+=`M${X(poly[0][0])} ${Y(poly[0][1])}`;for(const g of L.cv[pi].segs)d+=g.line?`L${X(g.p1[0])} ${Y(g.p1[1])}`:`C${X(g.c1[0])} ${Y(g.c1[1])} ${X(g.c2[0])} ${Y(g.c2[1])} ${X(g.p1[0])} ${Y(g.p1[1])}`;d+='Z'});
+    const col=S.mode==='bw'?(stroke?'#ff0000':'#000000'):L.hex;
+    o+=`  <g id="${layerName(L,li)}">\n    <path d="${d}" ${stroke?`fill="none" stroke="${col}" stroke-width="0.1"`:`fill="${col}"`} fill-rule="evenodd"/>\n  </g>\n`});
+  return o+'</svg>\n';
+}
+function flatten(segs,s,res){
+  const pts=[segs[0].p0];
+  for(const g of segs){
+    if(g.line){pts.push(g.p1);continue}
+    const len=(Math.hypot(g.p1[0]-g.p0[0],g.p1[1]-g.p0[1])+Math.hypot(g.c1[0]-g.p0[0],g.c1[1]-g.p0[1])+Math.hypot(g.c2[0]-g.c1[0],g.c2[1]-g.c1[1])+Math.hypot(g.p1[0]-g.c2[0],g.p1[1]-g.c2[1]))/2;
+    const n=Math.max(2,Math.min(96,Math.ceil(len*s/res)));
+    for(let k=1;k<=n;k++){const t=k/n,u=1-t,a=u*u*u,b=3*u*u*t,c=3*u*t*t,e=t*t*t;
+      pts.push([a*g.p0[0]+b*g.c1[0]+c*g.c2[0]+e*g.p1[0],a*g.p0[1]+b*g.c1[1]+c*g.c2[1]+e*g.p1[1]])}}
+  return pts;
+}
+function dxfText(){
+  const {s,bx,by,W,H}=geom(),res=Math.max(.02,num('dxfRes')||.2),r12=$('dxfFmt').value==='r12',L=[],g=(c,v)=>{L.push(String(c),String(v))},fx=v=>v.toFixed(4);
+  g(0,'SECTION');g(2,'HEADER');
+  if(r12){g(9,'$ACADVER');g(1,'AC1009')}
+  g(9,'$INSUNITS');g(70,4);g(9,'$MEASUREMENT');g(70,1);
+  g(9,'$EXTMIN');g(10,'0.0');g(20,'0.0');g(30,'0.0');g(9,'$EXTMAX');g(10,fx(W));g(20,fx(H));g(30,'0.0');
+  g(0,'ENDSEC');g(0,'SECTION');g(2,'ENTITIES');
+  let count=0;
+  S.layers.forEach((Ly,li)=>{if(!Ly.on)return;const name=layerName(Ly,li),aci=S.mode==='bw'?7:aciOf(Ly.rgb);
+    Ly.polys.forEach((poly,pi)=>{
+      const raw=flatten(Ly.cv[pi].segs,s,res).map(([x,y])=>[(x-bx)*s,H-(y-by)*s]),P=[];
+      for(const q of raw){const l=P[P.length-1];if(!l||Math.hypot(q[0]-l[0],q[1]-l[1])>1e-4)P.push(q)}
+      while(P.length>1&&Math.hypot(P[0][0]-P[P.length-1][0],P[0][1]-P[P.length-1][1])<=1e-4)P.pop();
+      if(P.length<3)return;count++;
+      if(r12){g(0,'POLYLINE');g(8,name);g(62,aci);g(66,1);g(10,'0.0');g(20,'0.0');g(30,'0.0');g(70,1);
+        for(const q of P){g(0,'VERTEX');g(8,name);g(10,fx(q[0]));g(20,fx(q[1]));g(30,'0.0')}g(0,'SEQEND');g(8,name)}
+      else{g(0,'LWPOLYLINE');g(100,'AcDbEntity');g(8,name);g(62,aci);g(100,'AcDbPolyline');g(90,P.length);g(70,1);g(43,'0.0');
+        for(const q of P){g(10,fx(q[0]));g(20,fx(q[1]))}}})});
+  g(0,'ENDSEC');g(0,'EOF');
+  return{text:L.join('\r\n')+'\r\n',count};
+}
+const CRC=(()=>{const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c>>>0}return t})();
+function crc32(u){let c=0xFFFFFFFF;for(let i=0;i<u.length;i++)c=CRC[(c^u[i])&255]^(c>>>8);return(c^0xFFFFFFFF)>>>0}
+function zipStore(name,u){
+  const nb=new TextEncoder().encode(name),crc=crc32(u),sz=u.length,lh=new DataView(new ArrayBuffer(30)),cd=new DataView(new ArrayBuffer(46)),e=new DataView(new ArrayBuffer(22));
+  lh.setUint32(0,0x04034b50,true);lh.setUint16(4,10,true);lh.setUint16(12,0x21,true);lh.setUint32(14,crc,true);lh.setUint32(18,sz,true);lh.setUint32(22,sz,true);lh.setUint16(26,nb.length,true);
+  cd.setUint32(0,0x02014b50,true);cd.setUint16(4,20,true);cd.setUint16(6,10,true);cd.setUint16(14,0x21,true);cd.setUint32(16,crc,true);cd.setUint32(20,sz,true);cd.setUint32(24,sz,true);cd.setUint16(28,nb.length,true);
+  e.setUint32(0,0x06054b50,true);e.setUint16(8,1,true);e.setUint16(10,1,true);e.setUint32(12,46+nb.length,true);e.setUint32(16,30+nb.length+sz,true);
+  return new Blob([lh,nb,u,cd,nb,e],{type:'application/zip'});
+}
+async function save(fname,blob){
+  if(DL){try{await DL.save({filename:fname,data:blob});toast('Listo: '+fname)}catch(e){toast(e&&e.code==='declined'?'Descarga cancelada':'No se pudo descargar ('+((e&&e.code)||'error')+'). Usa “Copiar”.')}return}
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=fname;document.body.appendChild(a);a.click();
+  setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},3000);toast('Descargando '+fname);
+}
+async function exportPNG(){
+  if(!S.data)return;const mode=$('pngSrc').value;let c;
+  if(mode==='vector'){if(!needVec())return;const {s,bx,by,W,H}=geom(),ppm=Math.max(72,num('dpi')||300)/25.4;let cw=Math.round(W*ppm),ch=Math.round(H*ppm),k=s*ppm;
+    const lim=12000/Math.max(cw,ch);if(lim<1){cw=Math.round(cw*lim);ch=Math.round(ch*lim);k*=lim;toast('PNG limitado a 12 000 px')}
+    c=document.createElement('canvas');c.width=Math.max(1,cw);c.height=Math.max(1,ch);const g=c.getContext('2d');g.setTransform(k,0,0,k,-bx*k,-by*k);
+    S.layers.forEach(L=>{if(L.on){g.fillStyle=S.mode==='bw'?'#000':L.hex;g.fill(L.path,'evenodd')}})}
+  else{let x0=0,y0=0,x1=S.w,y1=S.h;
+    if(chk('pngCrop')){x0=S.w;y0=S.h;x1=0;y1=0;for(let y=0;y<S.h;y++)for(let x=0;x<S.w;x++)if(S.keep[y*S.w+x]){if(x<x0)x0=x;if(x>=x1)x1=x+1;if(y<y0)y0=y;if(y>=y1)y1=y+1}
+      if(x1<=x0){toast('La imagen quedó vacía');return}}
+    c=document.createElement('canvas');c.width=x1-x0;c.height=y1-y0;c.getContext('2d').drawImage(S.proc,-x0,-y0)}
+  const blob=await new Promise(r=>c.toBlob(r,'image/png'));
+  save(`${S.name}_${mode==='vector'?num('dpi')+'dpi':'sin-fondo'}.png`,blob);
+}
+function exportSVG(){if(needVec())save(`${S.name}_${Math.round(S.mmW)}mm.svg`,new Blob([svgText()],{type:'image/svg+xml'}))}
+function exportDXF(){
+  if(!needVec())return;const {text,count}=dxfText(),fn=`${S.name}_${Math.round(S.mmW)}mm.dxf`;
+  if(DL)save(fn+'.zip',zipStore(fn,new TextEncoder().encode(text)));else save(fn,new Blob([text],{type:'application/dxf'}));
+  setTimeout(()=>toast(`DXF: ${count} polilíneas cerradas`),1200);
+}
+async function copy(txt,what){try{await navigator.clipboard.writeText(txt);toast(what+' copiado al portapapeles')}catch(e){toast('El navegador bloqueó el portapapeles')}}
+
+/* ---------- vista: zoom, pan, comparador ---------- */
+let checker=null;
+function mkChecker(){const c=document.createElement('canvas');c.width=c.height=20;const g=c.getContext('2d');g.fillStyle='#d9dbde';g.fillRect(0,0,20,20);g.fillStyle='#b9bcc1';g.fillRect(0,0,10,10);g.fillRect(10,10,10,10);checker=ctx.createPattern(c,'repeat')}
+function resize(){DPR=window.devicePixelRatio||1;CW=wrap.clientWidth;CH=wrap.clientHeight;cv.width=Math.round(CW*DPR);cv.height=Math.round(CH*DPR);mkChecker();draw()}
+function fit(){if(!S.w||!CW)return;const z=Math.min((CW-40)/S.w,(CH-110)/S.h);S.v.z=Math.max(.02,z);S.v.x=(CW-S.w*S.v.z)/2;S.v.y=(CH-S.h*S.v.z)/2+10;draw()}
+function zoomAt(f,px,py){const v=S.v,nz=Math.max(.02,Math.min(40,v.z*f));v.x=px-(px-v.x)*nz/v.z;v.y=py-(py-v.y)*nz/v.z;v.z=nz;draw()}
+function drawView(mode){
+  const v=S.v;ctx.save();ctx.translate(v.x,v.y);ctx.scale(v.z,v.z);ctx.imageSmoothingEnabled=v.z<2.5;
+  if(mode==='original')ctx.drawImage(S.src,0,0);
+  else if(mode==='clean')ctx.drawImage(S.proc,0,0);
+  else{ctx.globalAlpha=S.wire?.18:1;for(const L of S.layers)if(L.on){ctx.fillStyle=S.mode==='bw'?'#141414':L.hex;ctx.fill(L.path,'evenodd')}}
+  ctx.restore();
+}
+const LBL={original:'Original',clean:'Sin fondo',vector:'Vector'};
+function draw(){
+  ctx.setTransform(DPR,0,0,DPR,0,0);ctx.fillStyle='#0b0c0e';ctx.fillRect(0,0,CW,CH);
+  if(!S.src)return;
+  const v=S.v,A=$('viewA').value,B=$('viewB').value,sx=Math.round(S.split*CW);
+  ctx.save();ctx.beginPath();ctx.rect(v.x,v.y,S.w*v.z,S.h*v.z);ctx.clip();ctx.fillStyle=checker;ctx.fillRect(0,0,CW,CH);ctx.restore();
+  if(A===B)drawView(A);
+  else{ctx.save();ctx.beginPath();ctx.rect(0,0,sx,CH);ctx.clip();drawView(A);ctx.restore();ctx.save();ctx.beginPath();ctx.rect(sx,0,CW-sx,CH);ctx.clip();drawView(B);ctx.restore()}
+  if(S.wire){ctx.save();ctx.translate(v.x,v.y);ctx.scale(v.z,v.z);ctx.lineWidth=1/v.z;ctx.strokeStyle='#ff2d2d';
+    for(const L of S.layers)if(L.on)ctx.stroke(L.path);
+    if(S.stats.nodes<40000){const r=2.2/v.z;
+      for(const L of S.layers){if(!L.on)continue;L.polys.forEach((poly,pi)=>{const cf=L.cv[pi].corner;poly.forEach((q,i)=>{ctx.fillStyle=cf[i]?'#ff2d2d':'#ffffff';ctx.fillRect(q[0]-r,q[1]-r,2*r,2*r)})})}}
+    ctx.restore()}
+  if(A!==B){ctx.fillStyle='#ff7a1a';ctx.fillRect(sx-1,0,2,CH);ctx.beginPath();ctx.arc(sx,CH/2,15,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#1a0d02';ctx.font='bold 13px Archivo,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('‹ ›',sx,CH/2+1);
+    ctx.font='600 11px "JetBrains Mono",monospace';ctx.textBaseline='alphabetic';
+    const tag=(t,x,al)=>{ctx.textAlign=al;const w=ctx.measureText(t).width+12,bx=al==='right'?x-w:x;ctx.fillStyle='#0e1013d9';ctx.fillRect(bx,CH-58,w,20);ctx.fillStyle='#e8eaed';ctx.fillText(t,al==='right'?x-6:x+6,CH-44)};
+    tag(LBL[A],sx-8,'right');tag(LBL[B],sx+8,'left')}
+  $('zPct').textContent=Math.round(v.z*100)+'%';
+}
+
+/* ---------- interacción ---------- */
+let drag=null;
+const toImg=(px,py)=>[Math.floor((px-S.v.x)/S.v.z),Math.floor((py-S.v.y)/S.v.z)];
+cv.addEventListener('pointerdown',e=>{
+  const r=cv.getBoundingClientRect(),px=e.clientX-r.left,py=e.clientY-r.top;cv.setPointerCapture(e.pointerId);
+  const split=$('viewA').value!==$('viewB').value&&Math.abs(px-S.split*CW)<14;
+  drag={px,py,vx:S.v.x,vy:S.v.y,moved:false,split};
+});
+cv.addEventListener('pointermove',e=>{
+  const r=cv.getBoundingClientRect(),px=e.clientX-r.left,py=e.clientY-r.top;
+  if(S.data){const [x,y]=toImg(px,py);if(x>=0&&y>=0&&x<S.w&&y<S.h){const i=(y*S.w+x)*4;$('stPos').textContent=`x ${x} y ${y}`;$('stPix').innerHTML=`<i style="display:inline-block;width:9px;height:9px;vertical-align:middle;background:${hex([S.data[i],S.data[i+1],S.data[i+2]])}"></i> ${hex([S.data[i],S.data[i+1],S.data[i+2]])}`}else $('stPos').textContent='x — y —'}
+  const nearSplit=$('viewA').value!==$('viewB').value&&Math.abs(px-S.split*CW)<14;
+  cv.style.cursor=drag?.split||nearSplit?'ew-resize':drag?.moved?'grabbing':S.tool==='wand'?'crosshair':'grab';
+  if(!drag)return;
+  if(drag.split){S.split=Math.max(.02,Math.min(.98,px/CW));draw();return}
+  if(Math.hypot(px-drag.px,py-drag.py)>4)drag.moved=true;
+  if(drag.moved){S.v.x=drag.vx+px-drag.px;S.v.y=drag.vy+py-drag.py;draw()}
+});
+cv.addEventListener('pointerup',e=>{
+  if(drag&&!drag.moved&&!drag.split&&S.tool==='wand'&&S.data){
+    const [x,y]=toImg(drag.px,drag.py);
+    if(x>=0&&y>=0&&x<S.w&&y<S.h){const i=(y*S.w+x)*4;S.ops.push({t:'wand',x,y,color:[S.data[i],S.data[i+1],S.data[i+2]]});schedule(1)}}
+  drag=null;
+});
+cv.addEventListener('wheel',e=>{e.preventDefault();const r=cv.getBoundingClientRect();zoomAt(Math.pow(1.0015,-e.deltaY),e.clientX-r.left,e.clientY-r.top)},{passive:false});
+function setTool(t){S.tool=t;$('tPan').setAttribute('aria-pressed',t==='pan');$('tWand').setAttribute('aria-pressed',t==='wand');cv.style.cursor=t==='wand'?'crosshair':'grab'}
+$('tPan').onclick=()=>setTool('pan');$('tWand').onclick=()=>setTool('wand');
+$('zIn').onclick=()=>zoomAt(1.25,CW/2,CH/2);$('zOut').onclick=()=>zoomAt(.8,CW/2,CH/2);$('zFit').onclick=fit;
+$('zPct').onclick=()=>zoomAt(1/S.v.z,CW/2,CH/2);
+function setWire(on){S.wire=on;$('wire').setAttribute('aria-pressed',on);draw()}
+$('wire').onclick=()=>setWire(!S.wire);
+$('viewA').onchange=$('viewB').onchange=draw;
+function setMode(m){S.mode=m;S.layerOff=new Set();$('mBw').setAttribute('aria-pressed',m==='bw');$('mColor').setAttribute('aria-pressed',m==='color');$('rowSrc').style.display=m==='bw'?'':'none';$('rowK').style.display=m==='bw'?'none':'';schedule(2)}
+$('mBw').onclick=()=>setMode('bw');$('mColor').onclick=()=>setMode('color');
+
+const STAGE={tol:1,contig:1,grow:1,feather:1,hc:1,thr:1,inv:1,hcDrop:1,bwsrc:2,kcol:2,speck:2,eps:2,corner:3,smooth:3};
+const DEF={};
+for(const id in STAGE){const el=$(id);DEF[id]=el.type==='checkbox'?el.checked:el.value;
+  el.addEventListener(el.type==='range'?'input':'change',()=>{outs();if(id==='kcol')S.layerOff=new Set();schedule(STAGE[id])})}
+function outs(){document.querySelectorAll('output').forEach(o=>{const el=$(o.id.slice(0,-1));if(!el)return;const f=+(o.dataset.f||0);o.textContent=(+el.value).toFixed(f)+(o.dataset.u||'')})}
+
+$('auto').onclick=()=>{if(!S.data)return;const a=autoOp();S.ops=S.ops.filter(o=>o.t!=='auto');if(a)S.ops.unshift(a);else toast('El borde ya es transparente');schedule(1)};
+$('undo').onclick=()=>{if(S.ops.length){S.ops.pop();schedule(1)}};
+$('clearOps').onclick=()=>{S.ops=[];schedule(1)};
+$('reset').onclick=()=>{
+  for(const id in DEF){const el=$(id);if(el.type==='checkbox')el.checked=DEF[id];else el.value=DEF[id]}
+  outs();S.mmW=150;S.split=.5;$('viewA').value='original';$('viewB').value='vector';setWire(false);setTool('pan');
+  if(S.data){const a=autoOp();S.ops=a?[a]:[]}setMode('bw');fit();toast('Ajustes restablecidos');
+};
+$('file').onchange=e=>{loadFile(e.target.files[0]);e.target.value=''};
+$('sample').onclick=()=>setSource(makeSample(),'logo-ejemplo');
+$('qPng').onclick=$('dPng').onclick=exportPNG;
+$('qSvg').onclick=$('dSvg').onclick=exportSVG;
+$('qDxf').onclick=$('dDxf').onclick=exportDXF;
+$('cSvg').onclick=()=>{if(needVec())copy(svgText(),'SVG')};
+$('cDxf').onclick=()=>{if(needVec())copy(dxfText().text,'DXF')};
+
+let dc=0;
+addEventListener('dragenter',e=>{e.preventDefault();dc++;$('drop').classList.add('on')});
+addEventListener('dragleave',()=>{if(--dc<=0){dc=0;$('drop').classList.remove('on')}});
+addEventListener('dragover',e=>e.preventDefault());
+addEventListener('drop',e=>{e.preventDefault();dc=0;$('drop').classList.remove('on');const f=e.dataTransfer.files[0];if(f)loadFile(f)});
+addEventListener('paste',e=>{const it=[...(e.clipboardData?.items||[])].find(i=>i.type.startsWith('image/'));if(it)loadFile(it.getAsFile())});
+addEventListener('keydown',e=>{
+  if(/INPUT|SELECT|TEXTAREA/.test(document.activeElement?.tagName||'')&&document.activeElement.type!=='range')return;
+  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){e.preventDefault();$('undo').click();return}
+  const k=e.key.toLowerCase();if(k==='v')setTool('wand');else if(k==='h')setTool('pan');else if(k==='f')fit();else if(k==='w')setWire(!S.wire);
+});
+
+/* ---------- logo de ejemplo generado por código ---------- */
+function makeSample(){
+  const W=900,H=600,c=document.createElement('canvas');c.width=W;c.height=H;const g=c.getContext('2d');
+  let seed=7;const rnd=()=>(seed=(seed*16807)%2147483647)/2147483647;
+  g.fillStyle='#f3efe6';g.fillRect(0,0,W,H);
+  const cx=450,cy=245;
+  g.fillStyle='#1e2a4a';g.beginPath();g.arc(cx,cy,200,0,Math.PI*2);g.fill();
+  g.strokeStyle='#f3efe6';g.lineWidth=5;g.beginPath();g.arc(cx,cy,186,0,Math.PI*2);g.stroke();
+  const T=12,ro=160,ri=128,st=Math.PI*2/T;g.fillStyle='#e8622c';g.beginPath();
+  for(let k=0;k<T;k++){const a=k*st-Math.PI/2;[[ri,a],[ro,a+.14*st],[ro,a+.44*st],[ri,a+.58*st]].forEach(([r,t],j)=>{const x=cx+r*Math.cos(t),y=cy+r*Math.sin(t);k||j?g.lineTo(x,y):g.moveTo(x,y)})}
+  g.closePath();g.moveTo(cx+80,cy);g.arc(cx,cy,80,0,Math.PI*2,true);g.fill('evenodd');
+  g.fillStyle='#ffffff';g.font='800 54px Archivo,Arial,sans-serif';g.textAlign='center';g.textBaseline='middle';g.fillText('CNC',cx,cy+3);
+  g.fillStyle='#1e2a4a';g.font='800 60px Archivo,Arial,sans-serif';try{g.letterSpacing='5px'}catch(e){}g.textBaseline='alphabetic';g.fillText('MANUFACTURING',cx,528);
+  try{g.letterSpacing='3px'}catch(e){}g.fillStyle='#e8622c';g.font='600 22px Archivo,Arial,sans-serif';g.fillText('ROUTER · LÁSER · 3D',cx,568);
+  for(let i=0;i<46;i++){const x=rnd()*W,y=rnd()*H;if(Math.hypot(x-cx,y-cy)<220||(y>470&&x>110&&x<790))continue;g.fillStyle=rnd()<.5?'#3a3f4a':'#9a8f7d';g.beginPath();g.arc(x,y,.6+rnd()*1,0,Math.PI*2);g.fill()}
+  const id=g.getImageData(0,0,W,H),d=id.data;for(let i=0;i<d.length;i+=4){const n=(rnd()-.5)*12;d[i]+=n;d[i+1]+=n;d[i+2]+=n}g.putImageData(id,0,0);
+  return c;
+}
+
+/* ---------- arranque ---------- */
+outs();setMode('bw');
+new ResizeObserver(()=>{const ow=CW;resize();if(!ow||Math.abs(ow-CW)>40)fit()}).observe(wrap);
+(async()=>{try{await Promise.race([document.fonts.load('800 60px Archivo'),new Promise(r=>setTimeout(r,1500))])}catch(e){}setSource(makeSample(),'logo-ejemplo')})();
+(async()=>{try{if(window.claude&&typeof claude.use==='function')DL=await claude.use('downloads')}catch(e){DL=null}
+  $('dlNote').textContent=DL?'En el visor de Claude el DXF se entrega dentro de un .zip (el visor no admite la extensión .dxf). Abierto como archivo local se descarga directo.':''})();
+}
+</script>
+</body>
+</html>

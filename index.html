@@ -113,6 +113,7 @@
 <div class="toast-wrap" id="toasts"></div>
 <input type="file" id="restoreInput" accept=".json,application/json" class="hidden">
 <input type="file" id="attachInput" multiple class="hidden">
+<input type="file" id="disFileInput" multiple class="hidden">
 
 <script>
 'use strict';
@@ -123,7 +124,7 @@
    Alcance: drive.file (la app solo ve los archivos que ella misma crea)
    ========================================================================= */
 
-const APP_VERSION = '1.2.0';
+const APP_VERSION = '1.3.0';
 const KEYS = { db:'ccmx_db_v1', sync:'ccmx_sync_v1', cfg:'ccmx_cfg_v1', token:'ccmx_token_v1', ui:'ccmx_ui_v1', device:'ccmx_device_v1' };
 const DRIVE = 'https://www.googleapis.com/drive/v3';
 const UPLOAD = 'https://www.googleapis.com/upload/drive/v3';
@@ -618,6 +619,7 @@ const NAV = [
   { id:'proyectos', label:'Proyectos', icon:'folder-kanban', group:'Operación' },
   { id:'produccion', label:'Producción', icon:'factory', group:'Operación' },
   { id:'hebillas', label:'Hebillas JA', icon:'award', group:'Operación' },
+  { id:'diseno', label:'Diseño y mockups', icon:'palette', group:'Operación' },
   { id:'ventas', label:'Ventas', icon:'file-text', group:'Operación' },
   { id:'clientes', label:'Clientes / CRM', icon:'users', group:'Operación' },
   { id:'compras', label:'Compras', icon:'shopping-cart', group:'Operación' },
@@ -718,12 +720,12 @@ function render() {
   const caret = focusId && typeof active.selectionStart === 'number' ? active.selectionStart : null;
   renderSidebar(); renderTopbar(); renderBottomNav();
   const html = PAGES[ui.route]();
-  const simWrap = $('#hjSimFrameWrap');
-  if (simWrap && html.includes('id="hjSimFrameWrap"')) {
+  const simWrap = $('#keepFrameWrap');
+  if (simWrap && html.includes(`data-key="${simWrap.dataset.key}"`)) {
     /* conserva el iframe del simulador (no se recarga ni pierde el diseño) */
     const tmp = document.createElement('div'); tmp.innerHTML = html;
     Array.from($('#main').children).forEach(ch => { if (ch !== simWrap) ch.remove(); });
-    Array.from(tmp.children).filter(c => c.id !== 'hjSimFrameWrap').reverse().forEach(c => $('#main').prepend(c));
+    Array.from(tmp.children).filter(c => c.id !== 'keepFrameWrap').reverse().forEach(c => $('#main').prepend(c));
   } else $('#main').innerHTML = html;
   if (focusId) { const el = document.getElementById(focusId); if (el) { el.focus(); if (caret != null && el.setSelectionRange) { try { el.setSelectionRange(caret, caret); } catch (e) {} } } }
   icons();
@@ -841,7 +843,7 @@ PAGES.resumen = () => {
       </section>
       <section class="card"><div class="font-bold mb-3">Accesos rápidos</div>
         <div class="grid grid-cols-2 gap-2">
-          ${[['ventas', 'calculator', 'Cotizadores', 'Router · láser · 3D'], ['compras', 'shopping-cart', 'Compras', 'Proveedores'], ['catalogo', 'package', 'Catálogo', 'Costos y precios'], ['ajustes', 'hard-drive', 'Respaldo', 'Drive · JSON · CSV']].map(([r, i, t, s]) => `<a href="#/${r}" class="rounded-xl border border-slate-200 p-3 hover:border-brand-300"><div class="text-brand-600 mb-1">${ic(i, 'w-5 h-5')}</div><div class="text-sm font-bold">${t}</div><div class="text-[11px] text-slate-500">${s}</div></a>`).join('')}
+          ${[['diseno', 'palette', 'Diseño', 'Mockups y CNC'], ['ventas', 'calculator', 'Cotizadores', 'Router · láser · 3D'], ['compras', 'shopping-cart', 'Compras', 'Proveedores'], ['catalogo', 'package', 'Catálogo', 'Costos y precios'], ['ajustes', 'hard-drive', 'Respaldo', 'Drive · JSON · CSV']].map(([r, i, t, s]) => `<a href="#/${r}" class="rounded-xl border border-slate-200 p-3 hover:border-brand-300"><div class="text-brand-600 mb-1">${ic(i, 'w-5 h-5')}</div><div class="text-sm font-bold">${t}</div><div class="text-[11px] text-slate-500">${s}</div></a>`).join('')}
         </div>
       </section>
     </div>
@@ -1962,7 +1964,7 @@ function hjSimuladorTop() {
   </div>`;
 }
 function hjSimuladorFrame() {
-  return `<div id="hjSimFrameWrap" class="mt-4 card !p-0 overflow-hidden"><iframe id="simFrame" src="simulador.html" title="Simulador de grabado láser Hebillas" class="w-full block" style="height:max(1250px,150vh);border:0"></iframe></div>`;
+  return `<div id="keepFrameWrap" data-key="hj-sim" class="mt-4 card !p-0 overflow-hidden"><iframe id="simFrame" src="simulador.html" title="Simulador de grabado láser Hebillas" class="w-full block" style="height:max(1250px,150vh);border:0"></iframe></div>`;
 }
 async function hjSimAnexar(kind) {
   const p = getRec('hjPedidos', ui.hjSimPed); if (!p) { toast('Elige el pedido', 'error'); return; }
@@ -2281,6 +2283,98 @@ Object.assign(H, {
 });
 
 
+/* =====================================================================
+   DISEÑO · herramientas, configuradores y mockups (archivos en /herramientas)
+   ===================================================================== */
+const DIS_TOOLS = [
+  { id:'tablas', name:'Tablas de charcutería', file:'herramientas/tablas-charcuteria.html', cat:'Mockups 3D', icon:'utensils', proc:'Router CNC · Láser', desc:'Colección de 10 tablas en 5 maderas o tabla individual: forma, medida, espesor, asa, canal de jugo, grabado de logo y cavidad para piedra. Peso, madera bruta y tiempo de router.' },
+  { id:'cajas', name:'Cajas de MDF con láser', file:'herramientas/cajas-mdf-laser.html', cat:'Mockups 3D', icon:'box', proc:'Láser CO₂', desc:'Caja con unión de dedos (finger joint) a la medida, vista 3D y plano de corte acomodado en la hoja.' },
+  { id:'vino', name:'Caja de vino con tapa deslizable', file:'herramientas/caja-vino.html', cat:'Mockups 3D', icon:'wine', proc:'Router CNC · Láser', desc:'Mockup de presentación de caja de vino en pino o parota con tapa corrediza.' },
+  { id:'simulador', name:'Simulador de grabado (caja con tapa)', file:'simulador.html', cat:'Mockups 3D', icon:'pen-tool', proc:'Láser CO₂', desc:'Grabado sobre la foto real de la caja (tapa exterior, interior y frentes), ficha de solicitud por WhatsApp y DXF de producción. También está como anexo en Hebillas JA.' },
+  { id:'muebles', name:'Muebles paramétricos (tab & slot)', file:'herramientas/muebles-parametricos.html', cat:'Paramétricos CNC', icon:'armchair', proc:'Router CNC', desc:'Librero, escritorio, gabinete, comedero y banco con ensambles tab & slot y dogbones, nesting en tablero, BOM, DXF/SVG, cotizador y validaciones DFM.' },
+  { id:'costillas', name:'Mobiliario por costillas', file:'herramientas/costillas-cnc.html', cat:'Paramétricos CNC', icon:'layers', proc:'Router CNC · 3D', desc:'Banca, sofá, chaise, mesa, mostrador, silla, cabecera y panel por costillas con varillas, nesting emparejado, guía de ensamble y separador STL.' },
+  { id:'letreros', name:'Letreros luminosos (channel letters)', file:'herramientas/letreros-luminosos.html', cat:'Paramétricos CNC', icon:'lightbulb', proc:'Impresión 3D · Láser', desc:'Letras de canal para impresión 3D a partir de texto o imagen: piezas, frentes, exportación por lotes.' },
+  { id:'vector', name:'Vectorizador CNC', file:'herramientas/vectorizador-cnc.html', cat:'Utilidades', icon:'spline', proc:'Láser · Router', desc:'Convierte logos e imágenes a vector: quita fondo, varita mágica, B/N o multicolor, escala en mm y exporta PNG, SVG y DXF.' }
+];
+const disTool = id => DIS_TOOLS.find(t => t.id === id);
+const disFrame = () => $('#disFrame');
+function disTargets() {
+  const ps = list('proyectos').filter(p => p.etapa !== 'Cancelado').sort((a, b) => (isActive(b) - isActive(a)) || (b.createdAt || 0) - (a.createdAt || 0));
+  const hs = list('hjPedidos').filter(p => !hjDone(p)).sort((a, b) => String(b.creado || '').localeCompare(String(a.creado || '')));
+  return { ps, hs };
+}
+PAGES.diseno = () => {
+  const t = disTool(ui.disTool);
+  if (!t) {
+    const cats = [...new Set(DIS_TOOLS.map(x => x.cat))];
+    return `<div class="space-y-5">
+      <div><div class="text-[11px] font-bold tracking-widest text-brand-600">DISEÑO Y MOCKUPS</div><h1 class="text-2xl font-extrabold">Herramientas de diseño</h1><p class="text-sm text-slate-500">Configuradores, mockups 3D y generadores de archivos CNC/láser. Lo que generes (vista o archivos) se anexa al expediente de un proyecto o pedido de Hebillas JA.</p></div>
+      ${cats.map(c => `<section><div class="font-bold mb-2">${esc(c)}</div><div class="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">${DIS_TOOLS.filter(x => x.cat === c).map(x => `
+        <div class="card flex flex-col gap-3"><div class="flex items-start gap-3"><div class="w-11 h-11 rounded-xl bg-brand-50 text-brand-600 grid place-items-center shrink-0">${ic(x.icon, 'w-5 h-5')}</div><div class="min-w-0"><div class="font-bold">${esc(x.name)}</div><div class="text-[11px] text-slate-500">${esc(x.proc)}</div></div></div>
+          <p class="text-sm text-slate-600 flex-1">${esc(x.desc)}</p>
+          <div class="flex gap-2"><button class="btn btn-primary btn-sm flex-1" data-act="dis-open" data-v="${x.id}">${ic('play')}Abrir aquí</button><a class="btn btn-sm" href="${x.file}" target="_blank" rel="noopener" title="Abrir en pestaña nueva">${ic('external-link')}</a></div></div>`).join('')}</div></section>`).join('')}
+      <div class="text-[12px] text-slate-500">Las herramientas pesadas (3D) funcionan mejor en computadora o tableta. En celular usa <b>pestaña nueva</b>. Para agregar una herramienta nueva, súbela a la carpeta <code>herramientas/</code> del repositorio y avísame para registrarla aquí.</div>
+    </div>`;
+  }
+  const { ps, hs } = disTargets();
+  const sel = ui.disTarget || '';
+  return `<div class="space-y-3">
+    <div class="card space-y-3">
+      <div class="flex flex-wrap items-center gap-2"><button class="btn btn-sm" data-act="dis-back">${ic('chevron-left')}Herramientas</button><div class="min-w-0 flex-1"><div class="font-bold truncate">${esc(t.name)}</div><div class="text-[11px] text-slate-500">${esc(t.proc)}</div></div><a class="btn btn-sm" href="${t.file}" target="_blank" rel="noopener">${ic('external-link')}Pestaña nueva</a></div>
+      <div class="flex flex-wrap gap-2 items-end">
+        <label class="block flex-1 min-w-[240px]"><span class="lbl">Anexar a</span><select class="inp" data-dis-target="1"><option value="">— Elige proyecto o pedido —</option>
+          ${ps.length ? `<optgroup label="Proyectos">${ps.map(p => `<option value="proyectos:${p.id}" ${sel === 'proyectos:' + p.id ? 'selected' : ''}>${esc(p.folio)} · ${esc(p.nombre)} · ${esc(clientShort(p))}</option>`).join('')}</optgroup>` : ''}
+          ${hs.length ? `<optgroup label="Pedidos Hebillas JA">${hs.map(p => `<option value="hjPedidos:${p.id}" ${sel === 'hjPedidos:' + p.id ? 'selected' : ''}>${esc(p.folio)} · ${esc(p.titulo)}</option>`).join('')}</optgroup>` : ''}
+        </select></label>
+        <button class="btn btn-primary" data-act="dis-snap" ${sel ? '' : 'disabled'}>${ic('camera')}Anexar vista actual (PNG)</button>
+        <button class="btn" data-act="dis-file" ${sel ? '' : 'disabled'}>${ic('paperclip')}Adjuntar archivos exportados</button>
+      </div>
+      <div class="text-[12px] text-slate-500">Exporta desde la herramienta (DXF, SVG, CSV, STL…); se descargan a tu equipo. Luego usa <b>Adjuntar archivos exportados</b> para guardarlos en Drive dentro del expediente. ${Sync.hasToken() ? '' : '<b class="text-red-600">Drive no está conectado: la vista PNG se descargará y no podrás adjuntar archivos.</b>'}</div>
+    </div>
+  </div>
+  <div id="keepFrameWrap" data-key="dis-${t.id}" class="mt-3 card !p-0 overflow-hidden"><iframe id="disFrame" src="${t.file}" title="${esc(t.name)}" class="w-full block" style="height:max(900px,calc(100vh - 120px));border:0"></iframe></div>`;
+};
+function disParseTarget() { const [col, id] = String(ui.disTarget || '').split(':'); const rec = col && id ? getRec(col, id) : null; return rec ? { col, id, rec } : null; }
+async function disSnap() {
+  const T = disParseTarget(); if (!T) { toast('Elige el proyecto o pedido', 'error'); return; }
+  const f = disFrame(); let doc;
+  try { doc = f.contentDocument; } catch (e) { doc = null; }
+  if (!doc) { toast('No se puede leer la herramienta (ábrela desde la misma dirección de la app)', 'error'); return; }
+  const cvs = Array.from(doc.querySelectorAll('canvas')).filter(c => c.width > 50 && c.height > 50).sort((a, b) => b.width * b.height - a.width * a.height);
+  if (!cvs.length) { toast('Esta herramienta no tiene una vista para capturar; usa su exportación', 'error'); return; }
+  let blob = null;
+  try { blob = await new Promise(r => cvs[0].toBlob(r, 'image/png')); } catch (e) { blob = null; }
+  if (!blob) { toast('No se pudo capturar la vista', 'error'); return; }
+  const t = disTool(ui.disTool); const n = new Date();
+  const prefix = T.rec.folio || 'diseno';
+  const file = new File([blob], `${prefix}_${t.id}_${ymd(n).replace(/-/g, '')}-${pad(n.getHours())}${pad(n.getMinutes())}.png`, { type:'image/png' });
+  await disAttach(T, [file], `Vista de ${t.name}`);
+}
+async function disAttach(T, files, motivo) {
+  const adjuntos = [...(T.rec.adjuntos || [])]; let up = 0;
+  for (const f of files) {
+    if (Sync.hasToken()) {
+      try { Sync.setStatus('saving', 'Subiendo…'); adjuntos.push(await Sync.uploadFile(f, { description: `${motivo} · ${T.rec.folio || ''}` })); up++; continue; }
+      catch (e) { toast(`No se pudo subir ${f.name}: ${e.message}`, 'error', 5000); }
+    }
+    download(f.name, f, f.type);
+  }
+  const cur = getRec(T.col, T.id);
+  const log = `${motivo}: ${files.map(f => f.name).join(', ')}${up ? ' (en Drive)' : ' (descargado localmente)'}`;
+  const patch = { id: T.id, adjuntos };
+  if (T.col === 'hjPedidos') patch.bitacora = hjLog(cur, log);
+  else patch.bitacora = [...(cur.bitacora || []), { texto: log, at: Date.now(), device: deviceLabel() }];
+  upsert(T.col, patch, { silent:true });
+  render(); toast(up ? `${up} archivo(s) anexado(s) a ${T.rec.folio || 'el registro'}` : 'Archivo descargado (sin Drive)', up ? 'ok' : 'info');
+}
+Object.assign(H, {
+  'dis-open': el => { ui.disTool = el.dataset.v; render(); window.scrollTo(0, 0); },
+  'dis-back': () => { ui.disTool = null; render(); },
+  'dis-snap': () => disSnap(),
+  'dis-file': () => { const T = disParseTarget(); if (!T) return; if (!Sync.hasToken()) { toast('Conecta Google Drive para adjuntar archivos', 'error'); return; } const inp = $('#disFileInput'); inp.value = ''; inp.click(); }
+});
+
+
 document.addEventListener('click', e => {
   const el = e.target.closest('[data-act]');
   if (!el) return;
@@ -2311,6 +2405,8 @@ document.addEventListener('change', e => {
   if (t.dataset.hjv) { hjSetEst(t.dataset.hjv, t.type === 'checkbox' ? t.checked : t.value); return; }
   if (t.dataset.hjTipo) { const p = getRec('hjPedidos', t.dataset.hjTipo); if (p && p.tipo !== t.value) { upsert('hjPedidos', { id:p.id, tipo:t.value, bitacora: hjLog(p, `Tipo: ${hjTipoLabel(p.tipo)} → ${hjTipoLabel(t.value)}`) }, { silent:true }); render(); openHJ(p.id); } return; }
   if (t.dataset.hjPrio) { const p = getRec('hjPedidos', t.dataset.hjPrio); if (p) { upsert('hjPedidos', { id:p.id, prioridad:t.value, bitacora: hjLog(p, `Prioridad: ${t.value}`) }, { silent:true }); render(); openHJ(p.id); } return; }
+  if (t.dataset.disTarget) { ui.disTarget = t.value; render(); return; }
+  if (t.id === 'disFileInput' && t.files.length) { const T = disParseTarget(); if (T) disAttach(T, Array.from(t.files), `Archivo de ${(disTool(ui.disTool) || { name:'diseño' }).name}`); return; }
   if (t.id === 'restoreInput' && t.files[0]) restoreFromFile(t.files[0]);
   if (t.id === 'attachInput' && t.files.length) handleAttachFiles(Array.from(t.files));
 });

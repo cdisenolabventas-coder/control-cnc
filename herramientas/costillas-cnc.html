@@ -1,0 +1,714 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mobiliario Paramétrico por Costillas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+/* VOICE: estudio de diseño paramétrico con criterio de taller
+   IDEA: la pieza "rebanada" — costillas de multiplay unidas por varilla roscada
+   PICTURE: el mueble extruido en 3D, sus perfiles superpuestos y el nesting real
+   COLOUR: grafito, naranja fresa, cian para barrenos, madera de abedul
+   TYPE: Archivo + JetBrains Mono para cifras; LAYOUT: 3 paneles CAD */
+:root{color-scheme:light dark;
+--bg:light-dark(#e9edf0,#0d1216);--pn:light-dark(#ffffff,#141b21);--pn2:light-dark(#f4f6f8,#10161b);
+--ln:light-dark(#d3dae0,#243039);--ink:light-dark(#141b21,#dde5ea);--mu:light-dark(#5a6873,#8797a3);
+--ac:#ff6a13;--cy:light-dark(#0b8fb0,#3fc6e8);--gr:light-dark(#2f9a52,#77d48f);--wa:light-dark(#b7791f,#f2b84b);--er:light-dark(#c2361c,#ff7a5c);
+--grid:light-dark(rgba(20,40,60,.07),rgba(140,180,210,.06));--grid2:light-dark(rgba(20,40,60,.13),rgba(140,180,210,.11))}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 Archivo,system-ui,sans-serif;overflow-x:clip}
+.num{font-family:"JetBrains Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums}
+header{display:flex;align-items:center;gap:14px;padding:10px 16px;border-bottom:1px solid var(--ln);background:var(--pn);flex-wrap:wrap}
+header h1{font-size:17px;margin:0;font-weight:700;letter-spacing:-.01em}header h1 b{color:var(--ac)}
+header .sp{flex:1}header input{width:220px}
+.app{display:grid;grid-template-columns:310px minmax(0,1fr) 370px;height:calc(100vh - 55px);min-height:620px}
+aside{background:var(--pn);overflow-y:auto;padding:12px 14px 30px}
+aside.l{border-right:1px solid var(--ln)}aside.r{border-left:1px solid var(--ln)}
+h2{font-size:11.5px;font-weight:600;color:var(--mu);margin:18px 0 8px;letter-spacing:.02em;display:flex;align-items:center;gap:8px}
+h2::after{content:"";flex:1;height:1px;background:var(--ln)}
+.tpls{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.tpls button{min-height:44px;text-align:left;padding:7px 9px;font-size:12.5px;line-height:1.2}
+.tpls button.on{border-color:var(--ac);background:color-mix(in srgb,var(--ac) 14%,transparent)}
+button{font:inherit;color:var(--ink);background:var(--pn2);border:1px solid var(--ln);border-radius:7px;padding:8px 11px;cursor:pointer;min-height:36px}
+button:hover{border-color:var(--mu)}button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--ac);outline-offset:1px}
+button.pri{background:var(--ac);border-color:var(--ac);color:#1a0d04;font-weight:600}
+input,select{font:inherit;font-size:14px;color:var(--ink);background:var(--pn2);border:1px solid var(--ln);border-radius:6px;padding:6px 8px;min-height:34px}
+.ctl{margin:0 0 10px}
+.ctl label{display:flex;justify-content:space-between;font-size:12.5px;color:var(--mu);margin-bottom:3px}
+.ctl .row{display:grid;grid-template-columns:minmax(0,1fr) 82px;gap:8px;align-items:center}
+.ctl input[type=number]{width:100%;text-align:right;font-family:"JetBrains Mono",monospace;font-size:13px}
+input[type=range]{width:100%;accent-color:var(--ac);min-height:24px;padding:0;background:none;border:0}
+.chips{display:flex;gap:5px;margin-top:4px;flex-wrap:wrap}
+.chips button{min-height:26px;padding:2px 8px;font-size:12px;font-family:"JetBrains Mono",monospace}
+.read{font-size:12px;color:var(--mu);background:var(--pn2);border:1px dashed var(--ln);border-radius:6px;padding:7px 9px;margin:4px 0 8px}
+.read b{color:var(--ink);font-weight:600;font-family:"JetBrains Mono",monospace}
+.check{display:flex;gap:8px;align-items:center;font-size:13px;margin:6px 0 10px}
+.check input{min-height:auto;width:18px;height:18px;accent-color:var(--ac)}
+.sel{display:grid;gap:4px;margin-bottom:10px}.sel span{font-size:12.5px;color:var(--mu)}
+main{display:flex;flex-direction:column;min-height:0;position:relative}
+.tabs{display:flex;gap:4px;padding:8px 10px 0;border-bottom:1px solid var(--ln);background:var(--pn);align-items:flex-end;flex-wrap:wrap}
+.tabs>button{border-radius:7px 7px 0 0;border-bottom:none;min-height:38px;padding:8px 14px}
+.tabs>button.on{background:var(--bg);color:var(--ac);font-weight:600;position:relative;top:1px}
+.tabs .sp{flex:1}.vbtn{min-height:30px;padding:4px 9px;font-size:12px;margin-bottom:5px}
+.stage{flex:1;position:relative;min-height:0;overflow:hidden;background-color:var(--bg);
+background-image:linear-gradient(var(--grid2) 1px,transparent 1px),linear-gradient(90deg,var(--grid2) 1px,transparent 1px),linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+background-size:100px 100px,100px 100px,20px 20px,20px 20px}
+#c3d{position:absolute;inset:0;width:100%;height:100%;cursor:grab;touch-action:none}
+.pane{position:absolute;inset:0;overflow:auto;padding:14px;display:none}
+.pane svg{display:block;width:100%;height:auto}
+#profSvg{height:calc(100% - 34px)}#profPane svg{height:100%}
+.hud{position:absolute;left:12px;bottom:10px;font-size:12px;color:var(--mu);background:color-mix(in srgb,var(--pn) 88%,transparent);border:1px solid var(--ln);border-radius:6px;padding:6px 9px;pointer-events:none;max-width:calc(100% - 24px)}
+.hud b{color:var(--ink)}
+.legend{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--mu);padding:0 0 10px}
+.legend i{display:inline-block;width:14px;height:3px;vertical-align:middle;margin-right:5px;border-radius:2px}
+.kpi{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.k{background:var(--pn2);border:1px solid var(--ln);border-radius:8px;padding:8px 10px}
+.k span{display:block;font-size:11.5px;color:var(--mu)}
+.k b{display:block;font-size:19px;font-family:"JetBrains Mono",monospace;font-weight:600;line-height:1.25;white-space:nowrap}
+.k.big{grid-column:1/-1;border-color:color-mix(in srgb,var(--ac) 55%,var(--ln))}.k.big b{font-size:26px;color:var(--ac)}
+.bar{height:8px;background:var(--ln);border-radius:4px;overflow:hidden}.bar i{display:block;height:100%;background:var(--gr)}
+.shrow{display:grid;grid-template-columns:62px minmax(0,1fr) 40px;gap:8px;align-items:center;font-size:12px;margin:4px 0}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th{text-align:left;color:var(--mu);font-weight:500;border-bottom:1px solid var(--ln);padding:5px 4px}
+td{border-bottom:1px solid var(--ln);padding:5px 4px;vertical-align:top}
+td.n,th.n{text-align:right;font-family:"JetBrains Mono",monospace;white-space:nowrap}
+.bomw{max-height:280px;overflow:auto;border:1px solid var(--ln);border-radius:8px}.bomw th{position:sticky;top:0;background:var(--pn)}
+.qt{display:grid;grid-template-columns:minmax(0,1fr) 130px;gap:5px 8px;align-items:center;font-size:12.5px}
+.qt input,.qt select{text-align:right;font-family:"JetBrains Mono",monospace;font-size:13px;width:100%}
+.lines{font-size:12.5px}.lines div{display:flex;justify-content:space-between;gap:10px;padding:3px 0;border-bottom:1px dotted var(--ln)}
+.lines div b{font-family:"JetBrains Mono",monospace;font-weight:600;white-space:nowrap}
+.lines .tot{border-bottom:none;border-top:1px solid var(--ink);margin-top:3px;padding-top:6px;font-weight:600}
+.exp{display:grid;grid-template-columns:1fr 1fr;gap:6px}.exp button{min-height:44px}.exp .full{grid-column:1/-1}
+ul.warn{list-style:none;margin:0;padding:0;font-size:12.5px}
+ul.warn li{padding:6px 8px 6px 26px;border-radius:6px;margin-bottom:5px;position:relative;background:var(--pn2);border:1px solid var(--ln)}
+ul.warn li::before{content:"!";position:absolute;left:9px;top:6px;font-weight:700;color:var(--wa)}
+ul.warn li.e::before{color:var(--er)}ul.warn li.ok::before{content:"✓";left:7px;color:var(--gr)}
+.toast{position:fixed;right:16px;bottom:16px;background:var(--ink);color:var(--bg);padding:10px 14px;border-radius:8px;font-size:13px;opacity:0;transform:translateY(8px);transition:.2s;pointer-events:none;z-index:9;max-width:360px}
+.toast.on{opacity:1;transform:none}
+.note{font-size:11.5px;color:var(--mu);margin-top:6px}
+@media(prefers-reduced-motion:reduce){.toast{transition:none}}
+@media(max-width:1180px){.app{grid-template-columns:300px minmax(0,1fr);height:auto}aside.r{grid-column:1/-1;border-left:none;border-top:1px solid var(--ln)}main{height:72vh}}
+@media(max-width:760px){.app{grid-template-columns:1fr}aside.l{border-right:none}main{height:66vh;order:-1}header input{width:100%}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Mobiliario paramétrico <b>por costillas</b></h1>
+  <input id="pname" aria-label="Nombre del proyecto" value="Parametrico_01">
+  <span class="sp"></span>
+  <span class="num" style="font-size:12px;color:var(--mu)" id="hdrInfo"></span>
+</header>
+<div class="app">
+<aside class="l">
+  <h2>Forma base</h2>
+  <div class="tpls" id="tpls"></div>
+  <div id="ctls"></div>
+</aside>
+<main>
+  <div class="tabs">
+    <button id="tab3d" class="on" data-tab="3d">Vista 3D</button>
+    <button id="tabProf" data-tab="prof">Perfiles y varillas</button>
+    <button id="tabNest" data-tab="nest">Nesting en tablero</button>
+    <span class="sp"></span>
+    <span id="vbtns"><button class="vbtn" data-v="iso">Iso</button> <button class="vbtn" data-v="front">Frente</button> <button class="vbtn" data-v="side">Lateral</button> <button class="vbtn" data-v="top">Planta</button></span>
+  </div>
+  <div class="stage">
+    <canvas id="c3d" aria-label="Vista 3D del mueble por costillas"></canvas>
+    <div class="pane" id="profPane"><div class="legend"><span><i style="background:var(--ac)"></i>Costillas extremas y central</span><span><i style="background:var(--mu)"></i>Resto de costillas</span><span><i style="background:var(--cy)"></i>Varillas (barreno) y zona de seguridad</span></div><div id="profSvg"></div></div>
+    <div class="pane" id="nestPane"><div class="legend"><span><i style="background:var(--ac)"></i>CORTE_EXTERIOR</span><span><i style="background:var(--cy)"></i>RANURAS_INTERIORES (barrenos/aligerados)</span><span><i style="background:var(--mu)"></i>Margen 15 · separación 10 mm</span></div><div id="nestSvg"></div></div>
+    <div class="hud" id="hud"></div>
+  </div>
+</main>
+<aside class="r">
+  <h2>Resumen de producción</h2>
+  <div class="kpi" id="kpi"></div>
+  <div id="sheetBars" style="margin-top:8px"></div>
+  <h2>Exportar</h2>
+  <div class="exp">
+    <button class="pri" id="bDxf">Descargar DXF</button>
+    <button id="bSvg">Descargar SVG</button>
+    <button id="bCsv">Guía de ensamble (.csv)</button>
+    <button id="bStl">Separador .stl</button>
+    <button class="full" id="bZip">Paquete completo .zip (DXF + SVG + CSV + STL)</button>
+  </div>
+  <p class="note" id="dlNote">DXF R12 ASCII 1:1 mm. Capas: CORTE_EXTERIOR, RANURAS_INTERIORES, GRABADO_NUMERO (para láser o V-bit), TEXTO_ETIQUETAS, REF_TABLERO (no cortar).</p>
+  <h2>Cotizador</h2>
+  <div class="qt" id="qt"></div>
+  <div class="lines" id="cost" style="margin-top:10px"></div>
+  <h2>Validaciones DFM</h2>
+  <ul class="warn" id="warn"></ul>
+  <h2>Herrajes y varillas</h2>
+  <div class="bomw"><table><thead><tr><th>Varilla</th><th class="n">Posición y,z</th><th class="n">Costillas</th><th class="n">Largo</th></tr></thead><tbody id="rods"></tbody></table></div>
+  <h2>Despiece</h2>
+  <div class="bomw"><table><thead><tr><th>Pieza</th><th class="n">mm</th><th class="n">x</th><th class="n">Hoja</th></tr></thead><tbody id="bom"></tbody></table></div>
+</aside>
+</div>
+<div class="toast" id="toast"></div>
+
+<script id="core">
+/* ============ NÚCLEO: forma → costillas → varillas → nesting → CAM (sin DOM) ============ */
+const CORE=(()=>{
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const MAT={
+  baltic:{n:'Multiplay abedul (Baltic)',grain:true,price:1850,col:[226,198,150]},
+  triplay:{n:'Triplay de pino',grain:true,price:950,col:[214,176,118]},
+  mdf:{n:'MDF',grain:false,price:780,col:[170,140,100]},
+  okume:{n:'Triplay okume / marino',grain:true,price:2400,col:[196,140,104]}
+};
+const RODS={M8:{d:8,hole:8.6},M10:{d:10,hole:10.6},M12:{d:12,hole:12.7}};
+const P=(y,z)=>({y,z});
+const W=(u,S,o=0)=>Math.sin(2*Math.PI*(S.f*u+o)+S.ph*Math.PI/180);
+function chaikin(p,it){for(let k=0;k<it;k++){const q=[],n=p.length;
+  for(let i=0;i<n;i++){const a=p[i],b=p[(i+1)%n];q.push(P(.75*a.y+.25*b.y,.75*a.z+.25*b.z),P(.25*a.y+.75*b.y,.25*a.z+.75*b.z))}p=q}return p}
+function interp(pts,y){if(y<=pts[0][0])return pts[0][1];for(let i=1;i<pts.length;i++)if(y<=pts[i][0]){const a=pts[i-1],b=pts[i];return a[1]+(b[1]-a[1])*(y-a[0])/(b[0]-a[0])}return pts[pts.length-1][1]}
+function bottom(D,leg,a){if(a<15||leg+a*0.7>=D-leg-a*0.7)return[P(0,0),P(D,0)];
+  return[P(0,0),P(leg,0),P(leg+a*0.7,a),P(D-leg-a*0.7,a),P(D-leg,0),P(D,0)]}
+function pebble(Dr,Hr,oy,oz){return[P(oy+.1*Dr,oz+4),P(oy+.11*Dr,oz),P(oy+.13*Dr,oz),P(oy+.87*Dr,oz),P(oy+.89*Dr,oz),P(oy+.9*Dr,oz+4),P(oy+.96*Dr,oz+.3*Hr),P(oy+Dr,oz+.62*Hr),P(oy+.9*Dr,oz+Hr),P(oy+.1*Dr,oz+Hr),P(oy,oz+.62*Hr),P(oy+.04*Dr,oz+.3*Hr)]}
+
+/* ---------- Plantillas: cada una devuelve el perfil (y=profundidad, z=altura) de la costilla en u∈[0,1] ---------- */
+const COMMON=['A','f','ph','endR'];
+const TPL={
+ banca:{name:'Banca ola',def:{edge:25,L:1800,D:450,H:420,A:70,f:1.5,ph:0,arch:120,endR:220,nRods:3},show:[...COMMON,'arch'],
+  lab:{L:'Largo de la banca',D:'Profundidad',H:'Altura de asiento'},
+  prof(u,fe,S){const D=S.D,h=Math.max(160,(S.H+S.A*W(u,S))*(0.55+0.45*fe)),a=Math.min(S.arch,h-90);
+   return{outer:chaikin([...bottom(D,D*0.2,a),P(D,0.7*h),P(0.93*D,h),P(0.5*D,h-12),P(0.07*D,h),P(0,0.7*h)],3)}}},
+ sofa:{name:'Sofá paramétrico',def:{edge:25,L:2200,D:850,H:420,HB:820,bt:220,A:110,f:1,ph:90,arch:110,endR:320,nRods:3},show:[...COMMON,'HB','bt','arch'],
+  lab:{L:'Largo del sofá',D:'Profundidad total',H:'Altura de asiento',A:'Amplitud de ola en respaldo'},
+  prof(u,fe,S){const D=S.D,bt=Math.min(S.bt,D*0.45),hs=Math.max(220,S.H+S.A*0.25*W(u,S,0.25)),hb0=Math.max(hs+80,S.HB+S.A*W(u,S)),
+    hb=hs+(hb0-hs)*(0.2+0.8*fe),sd=D-bt,a=Math.min(S.arch,hs-130),leg=Math.min(D*0.18,150);
+   return{outer:chaikin([...bottom(D,leg,a),P(D,0.55*hb),P(D,hb-50),P(D-bt*0.4,hb),P(D-bt*0.95,hb-40),P(sd-30,hs+(hb-hs)*0.45),P(sd-50,hs+20),P(sd*0.5,hs-8),P(sd*0.1,hs+5),P(0,hs-35),P(0,hs*0.55)],3)}}},
+ chaise:{name:'Chaise ola',def:{edge:25,L:700,D:1700,H:820,T:130,A:70,f:1,ph:0,arch:170,endR:140,nRods:3},show:[...COMMON,'T','arch'],
+  lab:{L:'Ancho (apilado de costillas)',D:'Largo del perfil',H:'Altura de cabecera'},
+  prof(u,fe,S){const D=S.D,H=S.H,k=0.82+0.18*fe;
+   const top=[[0,.22],[.04,.3],[.22,.42],[.42,.5+S.A*W(u,S)/H],[.58,.4],[.78,.66],[.93,1+S.A*W(u,S,0.3)/H],[1,.88]].map(([y,z])=>[y*D,z*H*k]);
+   const th=S.T,ar=(y,m)=>Math.max(0,Math.min(S.arch*m,interp(top,y)-th));
+   const a1=ar(.4*D,1),a2=ar(.82*D,0.8);
+   const bot=[P(0,0),P(.16*D,0),P(.25*D,a1*.8),P(.4*D,a1),P(.53*D,a1*.8),P(.62*D,0),P(.7*D,0),P(.76*D,a2*.8),P(.82*D,a2),P(.88*D,a2*.8),P(.94*D,0),P(D,0)];
+   return{outer:chaikin([...bot,...top.slice().reverse().map(([y,z])=>P(y,z))],3)}}},
+ mesa:{name:'Mesa orgánica',def:{edge:25,L:1100,D:650,H:400,dome:130,light:70,sup:2.4,nRods:3},show:['dome','light','sup'],
+  lab:{L:'Largo de la mesa',D:'Ancho máximo',H:'Altura'},
+  prof(u,fe,S){const e=Math.pow(Math.max(0,1-Math.pow(Math.abs(2*u-1),S.sup)),1/S.sup),Dr=S.D*e;if(Dr<70)return null;
+   const Hr=Math.max(120,S.H-S.dome*(1-e*e)),oy=(S.D-Dr)/2,l=S.light,holes=[];
+   if(l>0&&Dr>2*l+140&&Hr>2*l+120)holes.push(chaikin(pebble(Dr-2*l,Hr-2*l,oy+l,l),3));
+   return{outer:chaikin(pebble(Dr,Hr,oy,0),3),holes}}},
+ mostrador:{name:'Mostrador recepción',def:{edge:22,legs:1,L:2400,D:850,H:1100,HW:750,LD:320,FB:240,WS:70,A:90,f:1.2,ph:0,endR:350,nRods:4},show:[...COMMON,'HW','LD','FB','WS','legs'],
+  lab:{L:'Largo del mostrador',D:'Profundidad total',H:'Altura de barra (cliente)',A:'Salida de la ola en el frente'},
+  prof(u,fe,S,ctx){const A=S.A,D=S.D,hw=Math.min(S.HW,S.H-120),ws=S.WS,He=hw+(S.H-hw)*(0.35+0.65*fe),fb=A+S.FB,ld=clamp(S.LD+A,fb+40,D-120),k=0.5*(1+W(u,S))*(0.4+0.6*fe);
+   const yF=z=>A*(1-k*Math.pow(Math.sin(Math.PI*Math.min(1,z/He)),0.8)),lg=S.legs&&ctx&&ctx.end,lw=90;
+   const pts=[P(A+60,8),P(A+60,0),P(A+68,0),P(fb-8,0),P(fb,0),P(fb,8)];
+   if(lg)pts.push(P(fb,hw-ws-60),P(fb+60,hw-ws),P(D-lw-60,hw-ws),P(D-lw,hw-ws-60),P(D-lw,8),P(D-lw,0),P(D-lw+8,0),P(D-8,0),P(D,0),P(D,8),P(D,hw-8),P(D,hw));
+   else pts.push(P(fb,hw-ws),P(D,hw-ws),P(D,hw));
+   pts.push(P(ld,hw),P(ld,He));
+   for(let j=0;j<=14;j++){const z=He*(1-j/14);if(z<120)break;pts.push(P(yF(z),z))}
+   pts.push(P(A+60,100));
+   return{outer:chaikin(pts,2)}},
+  warn(S){const w=[],knee=S.D-S.A-S.FB;
+   if(knee<450)w.push(['e',`Espacio para piernas de ${knee.toFixed(0)} mm del lado recepción: mínimo 450 mm (ideal 550+). Aumenta profundidad o reduce cuerpo frontal.`]);
+   if(S.HW<720||S.HW>780)w.push(['w',`Superficie de trabajo a ${S.HW} mm: rango ergonómico 720–760 mm.`]);
+   if(S.H<1000||S.H>1200)w.push(['w',`Barra de atención a ${S.H} mm: lo usual es 1050–1150 mm.`]);
+   if(S.H-S.HW<250)w.push(['w','Diferencia barra–trabajo < 250 mm: el monitor quedará visible al cliente.']);
+   if(S.LD<250)w.push(['w','Barra de atención < 250 mm de fondo: insuficiente para firmar o apoyar documentos.']);
+   if(S.WS<60)w.push(['w','Brazo de trabajo delgado: con costillas en voladizo, < 60 mm flexiona. Considera cubierta corrida de 18–25 mm atornillada encima.']);
+   if(!S.legs)w.push(['w','Sin patas traseras: ancla el mostrador al piso con escuadras o taquetes; el brazo de trabajo en voladizo lo tiende a voltear.']);
+   else w.push(['ok','Las 2 costillas de cada extremo bajan como patas traseras (90 mm); el espacio para piernas queda libre entre ellas.']);
+   w.push(['ok','Accesibilidad: considera una sección baja a 760–865 mm para silla de ruedas (fabrícala como segundo módulo).']);
+   w.push(['ok','Recomendado: cubierta continua (multiplay, Corian o cuarzo) sobre la superficie de trabajo; las costillas solas no dan superficie plana para teclado.']);
+   return w}},
+ silla:{name:'Silla',def:{edge:20,L:480,D:560,H:450,HB:860,bt:90,T:90,arch:300,A:40,f:0.5,ph:90,endR:110,nRods:3},show:[...COMMON,'HB','bt','T','arch'],
+  lab:{L:'Ancho de la silla',D:'Profundidad total',H:'Altura de asiento',HB:'Altura del respaldo',bt:'Grueso del respaldo',T:'Grueso mínimo del asiento'},
+  prof(u,fe,S){const D=S.D,hs=Math.max(300,S.H+S.A*0.3*W(u,S,0.25)),hb=hs+(Math.max(hs+150,S.HB+S.A*W(u,S))-hs)*(0.3+0.7*fe),bt=Math.min(S.bt,D*0.25),
+    sd=D*0.68,fl=70,rl=Math.max(80,bt),a=Math.min(S.arch,hs-S.T,(D-fl-rl)/1.3);
+   const bot=a>20?[P(0,0),P(fl,0),P(fl+a*0.25,a*0.8),P(fl+a*0.6,a),P(D-rl-a*0.6,a),P(D-rl-a*0.25,a*0.8),P(D-rl,0),P(D,0)]:[P(0,0),P(D,0)];
+   return{outer:chaikin([...bot,P(D,hb-50),P(D-bt*0.45,hb),P(D-bt*0.95,hb-25),P(sd+20,hs+70),P(sd-20,hs+12),P(sd*0.5,hs-12),P(0.08*D,hs),P(0,hs-30),P(0,hs*0.6)],3)}},
+  warn(S){const w=[],sd=S.D*0.68;
+   if(S.H<420||S.H>480)w.push(['w',`Altura de asiento ${S.H} mm: rango ergonómico de comedor 430–470 mm.`]);
+   if(sd<380||sd>480)w.push(['w',`Profundidad útil de asiento ≈ ${sd.toFixed(0)} mm: rango cómodo 400–460 mm. Ajusta la profundidad total.`]);
+   if(S.HB-S.H<330)w.push(['w','Respaldo < 330 mm sobre el asiento: no da apoyo lumbar.']);
+   if(S.L<420)w.push(['w',`Ancho ${S.L} mm: menor a 420 mm resulta estrecho para adulto.`]);
+   w.push(['ok','Silla: es la pieza más exigida (cargas dinámicas al recargarse). Usa multiplay 18 mm, M10, y prueba de 120 kg en respaldo antes de producir en serie.']);
+   return w}},
+ cabecera:{name:'Cabecera cama',def:{edge:18,L:1700,D:160,H:1350,base:60,lean:950,zb:450,dome:120,A:60,f:2,ph:0,endR:200,nRods:3},show:[...COMMON,'base','lean','zb','dome'],
+  lab:{L:'Ancho de la cabecera',D:'Relieve máximo',H:'Altura superior desde piso',A:'Ola en el remate superior',dome:'Copete central'},
+  prof(u,fe,S){const zb=Math.min(S.zb,S.H-300),Hr=zb+(S.H+S.A*W(u,S)+S.dome*(1-(2*u-1)**2)-S.dome-zb)*(0.6+0.4*fe),b=S.base,M=50,pts=[P(0,zb)];
+   for(let j=0;j<=M;j++){const z=zb+(Hr-zb)*j/M,bump=Math.exp(-(((z-S.lean)/280)**2)),cap=Math.sqrt(Math.max(0,Math.min(1,(Hr-z)/70)));
+     let r=b+(S.D-b)*bump*(0.75+0.25*W(u,S,0.15))*(0.5+0.5*fe);r=b*0.5+(r-b*0.5)*cap;pts.push(P(Math.max(b*0.5,r),z))}
+   pts.push(P(0,Hr));return{outer:chaikin(pts,1)}},
+  warn(S){const w=[];
+   if(S.zb>520)w.push(['w',`Inicio a ${S.zb} mm del piso: quedará hueco visible sobre el colchón (altura típica de colchón 500–600 mm). Bájalo a ≤ 450 mm.`]);
+   if(S.lean<S.zb+250)w.push(['w','Zona de apoyo de espalda muy baja: debe quedar 300–450 mm sobre el colchón.']);
+   if(S.L<1450)w.push(['w',`Ancho ${S.L} mm: menor que una cama matrimonial (1350–1400) más margen; revisa la medida del colchón.`]);
+   w.push(['ok','Montaje flotante con French cleat o riel oculto atornillado a muro; las varillas solo alinean las costillas.']);
+   w.push(['ok','Oportunidad: integra repisa/buró flotante y salida para lámpara o cargador USB en una costilla ensanchada (valor percibido alto).']);
+   return w}},
+ panel:{name:'Panel muro / TV',def:{L:2400,D:170,H:1200,base:60,edge:18,fz:1.2,f:1.5,ph:0,endR:300,tv:1,tvW:1300,tvH:750,tvZ:250,nRods:3},show:['f','ph','endR','base','fz','tv','tvW','tvH','tvZ'],
+  lab:{L:'Ancho del muro',D:'Relieve máximo',H:'Alto del panel'},
+  prof(u,fe,S){const H=S.H,b=S.base,M=56,pts=[P(0,0)],x=u*S.L;
+   for(let j=0;j<=M;j++){const z=H*j/M,env=Math.pow(Math.sin(Math.PI*z/H),0.35)||0;
+     let r=b+(S.D-b)*0.5*(1+Math.sin(2*Math.PI*(S.f*u+S.fz*z/H)+S.ph*Math.PI/180))*env*(0.3+0.7*fe);
+     if(S.tv&&Math.abs(x-S.L/2)<S.tvW/2&&z>=S.tvZ&&z<=S.tvZ+S.tvH)r=b;
+     pts.push(P(Math.max(b*0.6,r),z))}
+   pts.push(P(0,H));return{outer:chaikin(pts,1)}}}
+};
+function endF(xc,L,R){if(R<=0)return 1;const s=Math.min(xc,L-xc);return s>=R?1:Math.sqrt(Math.max(0,1-((R-s)/R)**2))}
+
+/* ---------- Campo de distancias por costilla (raster + chaflán) ---------- */
+function field(r,nx,nz,g){
+  const A=new Float32Array(nx*nz),polys=[r.outer,...r.holes];
+  for(let k=0;k<nz;k++){const zc=k*g,xs=[];
+    for(const p of polys)for(let i=0;i<p.length;i++){const a=p[i],b=p[(i+1)%p.length];
+      if((a.z<=zc&&b.z>zc)||(b.z<=zc&&a.z>zc))xs.push(a.y+(zc-a.z)/(b.z-a.z)*(b.y-a.y))}
+    xs.sort((a,b)=>a-b);
+    for(let q=0;q+1<xs.length;q+=2)for(let j=Math.max(0,Math.ceil(xs[q]/g));j<=Math.min(nx-1,Math.floor(xs[q+1]/g));j++)A[k*nx+j]=1e9}
+  const d1=g,d2=g*Math.SQRT2,at=(j,k)=>(j<0||k<0||j>=nx||k>=nz)?0:A[k*nx+j];
+  for(let k=0;k<nz;k++)for(let j=0;j<nx;j++){const i=k*nx+j;if(!A[i])continue;
+    A[i]=Math.min(A[i],at(j-1,k)+d1,at(j,k-1)+d1,at(j-1,k-1)+d2,at(j+1,k-1)+d2)}
+  for(let k=nz-1;k>=0;k--)for(let j=nx-1;j>=0;j--){const i=k*nx+j;if(!A[i])continue;
+    A[i]=Math.min(A[i],at(j+1,k)+d1,at(j,k+1)+d1,at(j+1,k+1)+d2,at(j-1,k+1)+d2)}
+  return A;
+}
+/* ---------- Colocación automática de varillas ---------- */
+function placeRods(ribs,S){
+  const R=RODS[S.rod],clr=R.hole/2+S.edge,M=ribs.length;
+  let ym=0,zm=0;ribs.forEach(r=>r.outer.forEach(p=>{ym=Math.max(ym,p.y);zm=Math.max(zm,p.z)}));
+  const g=Math.max(3,Math.max(ym,zm)/110),nx=Math.ceil(ym/g)+1,nz=Math.ceil(zm/g)+1,C=nx*nz;
+  const F=ribs.map(r=>field(r,nx,nz,g));
+  const label=F.map(A=>{let b=0;for(let i=1;i<C;i++)if(A[i]>A[b])b=i;return{y:(b%nx)*g,z:Math.floor(b/nx)*g,d:A[b]}});
+  const ok=(c,i)=>F[i][c]>=clr;
+  const run=new Int32Array(C),ra=new Int32Array(C);let any=0;
+  for(let c=0;c<C;c++){let best=0,bs=0,cur=0,cs=0;for(let i=0;i<M;i++){if(ok(c,i)){if(!cur)cs=i;cur++;if(cur>best){best=cur;bs=cs}}else cur=0}run[c]=best;ra[c]=bs;if(best)any++}
+  const pos=c=>({y:(c%nx)*g,z:Math.floor(c/nx)*g});
+  const minSep=Math.max(60,4*R.d),rods=[];
+  let cy=0,cz=0,cn=0;for(let c=0;c<C;c++)if(run[c]===M){const p=pos(c);cy+=p.y;cz+=p.z;cn++}
+  if(!cn)for(let c=0;c<C;c++)if(run[c]){const p=pos(c);cy+=p.y;cz+=p.z;cn++}
+  cy/=cn||1;cz/=cn||1;
+  const md=p=>rods.length?Math.min(...rods.map(r=>Math.hypot(r.y-p.y,r.z-p.z))):Math.hypot(p.y-cy,p.z-cz);
+  for(let k=0;k<S.nRods&&any;k++){let best=-1,bv=-1;
+    for(let c=0;c<C;c++){if(!run[c])continue;const p=pos(c),d=md(p);if(rods.length&&d<minSep)continue;const v=run[c]/M*3000+d;if(v>bv){bv=v;best=c}}
+    if(best<0)break;const p=pos(best);rods.push({y:p.y,z:p.z,a:ra[best],b:ra[best]+run[best]-1,extra:false})}
+  // Refuerzo: toda costilla necesita ≥2 varillas
+  const cnt=()=>{const n=new Array(M).fill(0);rods.forEach(r=>{for(let i=r.a;i<=r.b;i++)n[i]++});return n};
+  const dead=new Set();let guard=0;
+  while(guard++<8){const n=cnt(),d0=n.findIndex((v,i)=>v<2&&!dead.has(i));if(d0<0)break;
+    let best=-1,bv=-1,ba=0,bb=0;
+    for(let c=0;c<C;c++){if(!ok(c,d0))continue;const p=pos(c),d=md(p);if(d<minSep)continue;
+      let a=d0,b=d0;while(a>0&&ok(c,a-1))a--;while(b<M-1&&ok(c,b+1))b++;
+      if(b<=a)continue;let gain=0;for(let i=a;i<=b;i++)if(n[i]<2)gain++;const v=gain*1000+(b-a)*40+Math.min(d,400);if(v>bv){bv=v;best=c;ba=a;bb=b}}
+    if(best<0){dead.add(d0);continue}
+    const p=pos(best);rods.push({y:p.y,z:p.z,a:ba,b:bb,extra:true})}
+  return{rods,label,count:cnt(),grid:{g,nx,nz,ym,zm},clr};
+}
+
+/* ---------- Geometría de piezas y nesting ---------- */
+function lenArea(v){let L=0,A=0;for(let i=0;i<v.length;i++){const a=v[i],b=v[(i+1)%v.length];L+=Math.hypot(b.x-a.x,b.y-a.y);A+=(a.x*b.y-b.x*a.y)/2}return{L,A:Math.abs(A)}}
+function ribPart(r,rods,S,lab){
+  let mny=1e9,mnz=1e9,mxy=-1e9,mxz=-1e9;r.outer.forEach(p=>{mny=Math.min(mny,p.y);mnz=Math.min(mnz,p.z);mxy=Math.max(mxy,p.y);mxz=Math.max(mxz,p.z)});
+  const T=p=>({x:p.y-mny,y:p.z-mnz}),o=r.outer.map(T),holes=r.holes.map(h=>h.map(T)),hr=RODS[S.rod].hole/2;
+  const circ=rods.filter(q=>q.a<=r.k&&q.b>=r.k).map(q=>({x:q.y-mny,y:q.z-mnz,r:hr}));
+  const lo=lenArea(o);let cut=lo.L,area=lo.A;holes.forEach(h=>{const q=lenArea(h);cut+=q.L;area-=q.A});circ.forEach(c=>{cut+=2*Math.PI*c.r;area-=Math.PI*c.r*c.r});
+  const bw=mxy-mny,bh=mxz-mnz;
+  return{name:r.name,kind:'rib',o,holes,circ,bw,bh,grain:bw>=bh?'x':'y',area,cut,paths:1+holes.length+circ.length,lab:{x:lab.y-mny,y:lab.z-mnz,d:lab.d},x:r.x0};
+}
+function discPart(i,S){const R=RODS[S.rod],D=R.d+30,r=D/2;
+  return{name:'SEP_'+String(i+1).padStart(3,'0'),kind:'disc',oc:{x:r,y:r,r},o:null,holes:[],circ:[{x:r,y:r,r:R.hole/2}],bw:D,bh:D,grain:'n',
+   area:Math.PI*(r*r-(R.hole/2)**2),cut:2*Math.PI*(r+R.hole/2),paths:2,lab:{x:r,y:r,d:r}}}
+/* Emparejado 180°: la costilla B girada encaja sobre el perfil de A (skyline con holgura) */
+function spans(poly,W,s){const n=Math.ceil(W/s)+1,top=new Float64Array(n).fill(-1e9),bot=new Float64Array(n).fill(1e9);
+  for(let i=0;i<n;i++){const x=Math.min(W,i*s);for(let k=0;k<poly.length;k++){const a=poly[k],b=poly[(k+1)%poly.length];
+    if((a.x<=x&&b.x>=x)||(b.x<=x&&a.x>=x)){const y=Math.abs(b.x-a.x)<1e-9?Math.max(a.y,b.y):a.y+(x-a.x)/(b.x-a.x)*(b.y-a.y),y2=Math.abs(b.x-a.x)<1e-9?Math.min(a.y,b.y):y;
+      if(y>top[i])top[i]=y;if(y2<bot[i])bot[i]=y2}}}return{top,bot,n}}
+function dil(arr,r,mx){const n=arr.length,o=new Float64Array(n);for(let i=0;i<n;i++){let v=mx?-1e9:1e9;for(let j=Math.max(0,i-r);j<=Math.min(n-1,i+r);j++)v=mx?Math.max(v,arr[j]):Math.min(v,arr[j]);o[i]=v}return o}
+function pairVert(oA,wA,hA,oB,wB,hB,gap){const s=4,r=Math.ceil(gap/s)+1,A=spans(oA,wA,s),B=spans(oB,wB,s);
+  const tA=dil(A.top,r,true),nB=B.n,bB=new Float64Array(nB);for(let i=0;i<nB;i++){const t=B.top[nB-1-i];bB[i]=t<-1e8?1e9:hB-t}
+  const bBd=dil(bB,r,false);let best=null;const span=Math.max(wA,wB);
+  for(let dx=Math.min(0,wA-wB)-0.35*span;dx<=Math.max(0,wA-wB)+0.35*span;dx+=s){const sh=Math.round(dx/s);let dz=-1e9,ov=0;
+    for(let i=0;i<A.n;i++){const j=i-sh;if(j<0||j>=nB||tA[i]<-1e8||bBd[j]>1e8)continue;ov++;dz=Math.max(dz,tA[i]-bBd[j]+gap+1)}
+    if(!ov)continue;dz=Math.max(dz,-hB+gap);const x0=Math.min(0,sh*s),x1=Math.max(wA,sh*s+wB),y0=Math.min(0,dz),y1=Math.max(hA,dz+hB),ar=(x1-x0)*(y1-y0);
+    if(!best||ar<best.ar)best={ar,W:x1-x0,H:y1-y0,ax:-x0,ay:-y0,bx:sh*s-x0,by:dz-y0}}
+  return best}
+const swp=o=>o.map(p=>({x:p.y,y:p.x}));
+function pairParts(A,B,gap){const v=pairVert(A.o,A.bw,A.bh,B.o,B.bw,B.bh,gap),h=pairVert(swp(A.o),A.bh,A.bw,swp(B.o),B.bh,B.bw,gap);
+  const hh=h&&{ar:h.ar,W:h.H,H:h.W,ax:h.ay,ay:h.ax,bx:h.by,by:h.bx};return[v,hh].filter(Boolean).sort((a,b)=>a.ar-b.ar)[0]}
+function nest(G,S,grainOn,pairOn){
+  const gap=S.ng,UW=S.sheetL-2*S.margin+gap,UH=S.sheetW-2*S.margin+gap,fits=(w,h,gr)=>(gr!=='y'&&w+gap<=UW&&h+gap<=UH)||(gr!=='x'&&h+gap<=UW&&w+gap<=UH);
+  const groups=[];let i=0;
+  while(i<G.length){const A=G[i],B=G[i+1],gr=grainOn?A.grain:'n';
+    if(pairOn&&B&&A.kind==='rib'&&B.kind==='rib'&&A.grain===B.grain){const pr=pairParts(A,B,gap);
+      if(pr&&pr.ar<0.9*(A.bw*A.bh+B.bw*B.bh)&&fits(pr.W,pr.H,gr)){groups.push({bw:pr.W,bh:pr.H,grain:A.grain,m:[{i,flip:false,ox:pr.ax,oy:pr.ay},{i:i+1,flip:true,ox:pr.bx,oy:pr.by}]});i+=2;continue}}
+    groups.push({bw:A.bw,bh:A.bh,grain:A.grain,m:[{i,flip:false,ox:0,oy:0}]});i++}
+  const sheets=[],bad=[],gpl=new Array(groups.length);
+  const newSheet=()=>{const s={free:[{x:0,y:0,w:UW,h:UH}],items:[]};sheets.push(s);return s};
+  const order=groups.map((g,i)=>i).sort((a,b)=>Math.max(groups[b].bw,groups[b].bh)-Math.max(groups[a].bw,groups[a].bh)||groups[b].bw*groups[b].bh-groups[a].bw*groups[a].bh);
+  const opts=g=>{const gr=grainOn?g.grain:'n',o=[];if(gr!=='y')o.push({rot:false,w:g.bw+gap,h:g.bh+gap});if(gr!=='x')o.push({rot:true,w:g.bh+gap,h:g.bw+gap});return o};
+  const find=(s,os)=>{let best=null;for(const op of os)for(const f of s.free)if(op.w<=f.w+1e-6&&op.h<=f.h+1e-6){
+    const ss=Math.min(f.w-op.w,f.h-op.h),ls=Math.max(f.w-op.w,f.h-op.h);if(!best||ss<best.ss||(ss===best.ss&&ls<best.ls))best={f,op,ss,ls}}return best};
+  const place=(s,b)=>{const R={x:b.f.x,y:b.f.y,w:b.op.w,h:b.op.h},nf=[];
+    for(const F of s.free){if(R.x>=F.x+F.w||R.x+R.w<=F.x||R.y>=F.y+F.h||R.y+R.h<=F.y){nf.push(F);continue}
+      if(R.x>F.x)nf.push({x:F.x,y:F.y,w:R.x-F.x,h:F.h});if(R.x+R.w<F.x+F.w)nf.push({x:R.x+R.w,y:F.y,w:F.x+F.w-R.x-R.w,h:F.h});
+      if(R.y>F.y)nf.push({x:F.x,y:F.y,w:F.w,h:R.y-F.y});if(R.y+R.h<F.y+F.h)nf.push({x:F.x,y:R.y+R.h,w:F.w,h:F.y+F.h-R.y-R.h})}
+    s.free=nf.filter((a,i)=>!nf.some((b,j)=>j!==i&&a.x>=b.x-1e-9&&a.y>=b.y-1e-9&&a.x+a.w<=b.x+b.w+1e-9&&a.y+a.h<=b.y+b.h+1e-9&&(j<i||a.w!==b.w||a.h!==b.h||a.x!==b.x||a.y!==b.y)));return R};
+  for(const gi of order){const g=groups[gi],os=opts(g);let done=false;
+    for(let si=0;si<sheets.length&&!done;si++){const b=find(sheets[si],os);if(b){const R=place(sheets[si],b);gpl[gi]={sheet:si,x:S.margin+R.x,y:S.margin+R.y,rot:b.op.rot};sheets[si].items.push(gi);done=true}}
+    if(!done){const s=newSheet(),b=find(s,os);if(b){const R=place(s,b);gpl[gi]={sheet:sheets.length-1,x:S.margin+R.x,y:S.margin+R.y,rot:b.op.rot};s.items.push(gi)}else{sheets.pop();g.m.forEach(m=>bad.push(m.i))}}}
+  const pl=new Array(G.length);
+  groups.forEach((g,gi)=>{const p=gpl[gi];if(!p)return;g.m.forEach(m=>{const pt=G[m.i];
+    const T=(x,y)=>{const lx=(m.flip?pt.bw-x:x)+m.ox,ly=(m.flip?pt.bh-y:y)+m.oy;return p.rot?[p.x+(g.bh-ly),p.y+lx]:[p.x+lx,p.y+ly]};
+    pl[m.i]={sheet:p.sheet,T,rot:p.rot,flip:m.flip}})});
+  sheets.forEach(s=>{s.items=s.items.flatMap(gi=>groups[gi].m.map(m=>m.i))});
+  return{sheets,pl,bad,pairs:groups.filter(g=>g.m.length===2).length};
+}
+const tf=(g,p)=>p.T;
+
+/* ---------- DXF R12 ---------- */
+const LAYERS=[['0',7],['CORTE_EXTERIOR',1],['RANURAS_INTERIORES',4],['GRABADO_NUMERO',6],['TEXTO_ETIQUETAS',7],['REF_TABLERO',8]];
+function dxf(G,N,S,name){
+  const f=v=>(Math.round(v*10000)/10000).toFixed(4),o=[],w=(...a)=>{for(let i=0;i<a.length;i+=2)o.push(String(a[i]),String(a[i+1]))};
+  const SP=S.sheetL+200,nS=N.sheets.length;
+  w(0,'SECTION',2,'HEADER',9,'$ACADVER',1,'AC1009',9,'$EXTMIN',10,f(0),20,f(0),30,f(0),9,'$EXTMAX',10,f(Math.max(1,nS)*SP),20,f(S.sheetW+60),30,f(0),0,'ENDSEC');
+  w(0,'SECTION',2,'TABLES',0,'TABLE',2,'LTYPE',70,1,0,'LTYPE',2,'CONTINUOUS',70,0,3,'Solid line',72,65,73,0,40,f(0),0,'ENDTAB');
+  w(0,'TABLE',2,'LAYER',70,LAYERS.length);LAYERS.forEach(([n,c])=>w(0,'LAYER',2,n,70,0,62,c,6,'CONTINUOUS'));w(0,'ENDTAB');
+  w(0,'TABLE',2,'STYLE',70,1,0,'STYLE',2,'STANDARD',70,0,40,f(0),41,f(1),50,f(0),71,0,42,f(2.5),3,'txt',4,'',0,'ENDTAB',0,'ENDSEC');
+  w(0,'SECTION',2,'BLOCKS',0,'ENDSEC',0,'SECTION',2,'ENTITIES');
+  const poly=(L,v,T)=>{w(0,'POLYLINE',8,L,66,1,10,f(0),20,f(0),30,f(0),70,1);v.forEach(p=>{const[X,Y]=T(p.x,p.y);w(0,'VERTEX',8,L,10,f(X),20,f(Y),30,f(0))});w(0,'SEQEND',8,L)};
+  const circ=(L,X,Y,r)=>w(0,'CIRCLE',8,L,10,f(X),20,f(Y),30,f(0),40,f(r));
+  const txt=(L,X,Y,h,s)=>w(0,'TEXT',8,L,10,f(X),20,f(Y),30,f(0),40,f(h),1,String(s).replace(/[^\x20-\x7E]/g,'_'),72,1,11,f(X),21,f(Y),31,f(0));
+  for(let s=0;s<nS;s++){const ox=s*SP;poly('REF_TABLERO',[{x:0,y:0},{x:S.sheetL,y:0},{x:S.sheetL,y:S.sheetW},{x:0,y:S.sheetW}],(x,y)=>[ox+x,y]);
+    txt('TEXTO_ETIQUETAS',ox+S.sheetL/2,S.sheetW+30,22,name+'  TABLERO '+(s+1)+'/'+nS+'  e='+S.t+' mm')}
+  G.forEach((g,i)=>{const p=N.pl[i];if(!p)return;const t0=tf(g,p),ox=p.sheet*SP,T=(x,y)=>{const[a,b]=t0(x,y);return[a+ox,b]};
+    g.holes.forEach(h=>poly('RANURAS_INTERIORES',h,T));
+    g.circ.forEach(c=>{const[X,Y]=T(c.x,c.y);circ('RANURAS_INTERIORES',X,Y,c.r)});
+    if(g.oc){const[X,Y]=T(g.oc.x,g.oc.y);circ('CORTE_EXTERIOR',X,Y,g.oc.r)}else poly('CORTE_EXTERIOR',g.o,T);
+    if(g.kind==='rib'){const[X,Y]=T(g.lab.x,g.lab.y),h=clamp(g.lab.d*0.5,5,22);
+      txt('GRABADO_NUMERO',X,Y,h,g.name);txt('TEXTO_ETIQUETAS',X,Y-h*1.1,h*0.45,'x='+g.x.toFixed(1))}});
+  w(0,'ENDSEC',0,'EOF');return o.join('\r\n')+'\r\n';
+}
+/* ---------- SVG ---------- */
+function svgPoly(v,T){return'M'+v.map(p=>T(p.x,p.y).map(q=>q.toFixed(2)).join(' ')).join('L')+'Z'}
+function svg(G,N,S,name,display){
+  const nS=Math.max(1,N.sheets.length),SG=display?90:60,TH=S.sheetW+SG,Ht=nS*TH;
+  const esc=s=>String(s).replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
+  const L={ext:[],int:[],txt:[],ref:[]};
+  N.sheets.forEach((_,s)=>{const oy=s*TH+(display?SG-10:SG/2);
+    L.ref.push(`<rect x="0" y="${oy}" width="${S.sheetL}" height="${S.sheetW}"${display?' class="sh"':''}/>`);
+    if(display)L.ref.push(`<rect x="${S.margin}" y="${oy+S.margin}" width="${S.sheetL-2*S.margin}" height="${S.sheetW-2*S.margin}" class="mg"/>`);
+    L.txt.push(`<text x="0" y="${oy-14}" class="hd" font-size="30">Tablero ${s+1} / ${N.sheets.length} · ${S.sheetL}×${S.sheetW} · e=${S.t} mm</text>`)});
+  G.forEach((g,i)=>{const p=N.pl[i];if(!p)return;const t0=tf(g,p),oy=p.sheet*TH+(display?SG-10:SG/2),T=(x,y)=>{const[a,b]=t0(x,y);return[a,oy+S.sheetW-b]};
+    if(g.oc){const[X,Y]=T(g.oc.x,g.oc.y);L.ext.push(`<circle cx="${X.toFixed(2)}" cy="${Y.toFixed(2)}" r="${g.oc.r}"/>`)}
+    else L.ext.push(`<path d="${svgPoly(g.o,T)}"><title>${esc(g.name)} · ${g.bw.toFixed(0)}×${g.bh.toFixed(0)} mm</title></path>`);
+    g.holes.forEach(h=>L.int.push(`<path d="${svgPoly(h,T)}"/>`));
+    g.circ.forEach(c=>{const[X,Y]=T(c.x,c.y);L.int.push(`<circle cx="${X.toFixed(2)}" cy="${Y.toFixed(2)}" r="${c.r}"/>`)});
+    if(g.kind==='rib'){const[X,Y]=T(g.lab.x,g.lab.y),h=clamp(g.lab.d*0.5,display?10:5,display?34:22);
+      L.txt.push(`<text x="${X.toFixed(1)}" y="${(Y+h*0.35).toFixed(1)}" font-size="${h.toFixed(1)}" text-anchor="middle" class="lb">${esc(g.name)}</text>`)}});
+  const lay=(id,body,st)=>`<g id="${id}" inkscape:label="${id}" inkscape:groupmode="layer" ${st}>${body.join('')}</g>`;
+  const head=`<svg xmlns="http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" `;
+  if(display)return head+`viewBox="-10 0 ${S.sheetL+20} ${Ht}" font-family="Archivo,sans-serif">${lay('REF_TABLERO',L.ref,'')}${lay('CORTE_EXTERIOR',L.ext,'class="ext"')}${lay('RANURAS_INTERIORES',L.int,'class="int"')}${lay('TEXTO_ETIQUETAS',L.txt,'')}</svg>`;
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<!-- ${esc(name)} · unidades mm, escala 1:1 -->\n`+head+`width="${S.sheetL}mm" height="${Ht}mm" viewBox="0 0 ${S.sheetL} ${Ht}">
+${lay('REF_TABLERO',L.ref,'fill="none" stroke="#999999" stroke-width="0.2"')}
+${lay('RANURAS_INTERIORES',L.int,'fill="none" stroke="#00a0c8" stroke-width="0.2"')}
+${lay('CORTE_EXTERIOR',L.ext,'fill="none" stroke="#ff0000" stroke-width="0.2"')}
+${lay('TEXTO_ETIQUETAS',L.txt,'fill="#000000" font-family="Arial"')}
+</svg>`;
+}
+/* ---------- STL del separador (tubo) ---------- */
+function stlTube(od,id,h,name){const n=64,R=od/2,r=id/2,f=[],v=(a,rr,z)=>[rr*Math.cos(a),rr*Math.sin(a),z];
+  const tri=(a,b,c)=>{const u=[b[0]-a[0],b[1]-a[1],b[2]-a[2]],w=[c[0]-a[0],c[1]-a[1],c[2]-a[2]],nn=[u[1]*w[2]-u[2]*w[1],u[2]*w[0]-u[0]*w[2],u[0]*w[1]-u[1]*w[0]],l=Math.hypot(...nn)||1;
+    f.push(`facet normal ${(nn[0]/l).toFixed(5)} ${(nn[1]/l).toFixed(5)} ${(nn[2]/l).toFixed(5)}\n outer loop\n${[a,b,c].map(p=>`  vertex ${p.map(q=>q.toFixed(4)).join(' ')}`).join('\n')}\n endloop\nendfacet`)};
+  for(let i=0;i<n;i++){const a=i/n*2*Math.PI,b=(i+1)/n*2*Math.PI;
+    const o0=v(a,R,0),o1=v(b,R,0),O0=v(a,R,h),O1=v(b,R,h),i0=v(a,r,0),i1=v(b,r,0),I0=v(a,r,h),I1=v(b,r,h);
+    tri(o0,o1,O1);tri(o0,O1,O0);tri(i0,I1,i1);tri(i0,I0,I1);tri(O0,O1,I1);tri(O0,I1,I0);tri(o0,i1,o1);tri(o0,i0,i1)}
+  return`solid ${name}\n${f.join('\n')}\nendsolid ${name}\n`}
+/* ---------- ZIP (store) ---------- */
+const CRC=(()=>{const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c>>>0}return t})();
+const crc32=u=>{let c=0xFFFFFFFF;for(let i=0;i<u.length;i++)c=CRC[(c^u[i])&255]^(c>>>8);return(c^0xFFFFFFFF)>>>0};
+function zip(files){const enc=new TextEncoder(),ch=[],cen=[];let off=0;const d=new Date(),dt=((d.getFullYear()-1980)<<9)|((d.getMonth()+1)<<5)|d.getDate(),tm=(d.getHours()<<11)|(d.getMinutes()<<5);
+  for(const fl of files){const nb=enc.encode(fl.name),data=typeof fl.data==='string'?enc.encode(fl.data):fl.data,crc=crc32(data);
+    const lh=new Uint8Array(30+nb.length),v=new DataView(lh.buffer);v.setUint32(0,0x04034b50,true);v.setUint16(4,20,true);v.setUint16(6,0x0800,true);v.setUint16(10,tm,true);v.setUint16(12,dt,true);
+    v.setUint32(14,crc,true);v.setUint32(18,data.length,true);v.setUint32(22,data.length,true);v.setUint16(26,nb.length,true);lh.set(nb,30);
+    const c=new Uint8Array(46+nb.length),e=new DataView(c.buffer);e.setUint32(0,0x02014b50,true);e.setUint16(4,20,true);e.setUint16(6,20,true);e.setUint16(8,0x0800,true);e.setUint16(12,tm,true);e.setUint16(14,dt,true);
+    e.setUint32(16,crc,true);e.setUint32(20,data.length,true);e.setUint32(24,data.length,true);e.setUint16(28,nb.length,true);e.setUint32(42,off,true);c.set(nb,46);
+    ch.push(lh,data);cen.push(c);off+=lh.length+data.length}
+  const cs=cen.reduce((a,b)=>a+b.length,0),end=new Uint8Array(22),e=new DataView(end.buffer);e.setUint32(0,0x06054b50,true);e.setUint16(8,files.length,true);e.setUint16(10,files.length,true);e.setUint32(12,cs,true);e.setUint32(16,off,true);
+  const all=[...ch,...cen,end],out=new Uint8Array(all.reduce((a,b)=>a+b.length,0));let p=0;all.forEach(a=>{out.set(a,p);p+=a.length});return out}
+
+/* ---------- Cálculo completo ---------- */
+function compute(S){
+  const T=TPL[S.tpl],R=RODS[S.rod],pitch=S.t+S.gap,warn=[];
+  const N0=Math.max(2,Math.floor((S.L-S.t)/pitch)+1),Lr=(N0-1)*pitch+S.t;
+  const ribs=[];for(let i=0;i<N0;i++){const x0=i*pitch,xc=x0+S.t/2,u=xc/Lr,pr=T.prof(u,endF(xc,Lr,S.endR),S,{end:i<2||i>=N0-2});if(pr&&pr.outer.length>2)ribs.push({x0,u,outer:pr.outer,holes:pr.holes||[]})}
+  ribs.forEach((r,k)=>{r.k=k;r.name='C'+String(k+1).padStart(2,'0')});
+  const RP=placeRods(ribs,S),rods=RP.rods;
+  const G=ribs.map(r=>ribPart(r,rods,S,RP.label[r.k]));
+  // Separadores
+  const gaps=rods.reduce((a,q)=>a+(q.b-q.a),0);
+  let nSep=0,discStack=0;
+  if(S.gap>0){if(S.spacer==='disco'){discStack=Math.max(1,Math.round(S.gap/S.t));nSep=gaps*discStack;
+      if(Math.abs(discStack*S.t-S.gap)>0.3)warn.push(['e',`Separación ${S.gap} mm no es múltiplo del espesor ${S.t} mm: los discos del mismo tablero no cuadran. Usa ${discStack*S.t} mm o separador impreso.`]);
+      for(let i=0;i<nSep;i++)G.push(discPart(i,S))}
+    else nSep=gaps}
+  const Q=Math.max(1,S.qty|0),G1=G.slice();for(let k=1;k<Q;k++)G1.forEach(g=>G.push({...g,name:'U'+(k+1)+'-'+g.name}));
+  const mat=MAT[S.mat],gOn=mat.grain&&S.grainLock,N1=nest(G,S,gOn,false),N2=S.pair?nest(G,S,gOn,true):null,N=N2&&N2.sheets.length<N1.sheets.length?N2:N1;
+  // Validaciones
+  N.bad.forEach(i=>warn.unshift(['e',`${G[i].name} (${G[i].bw.toFixed(0)}×${G[i].bh.toFixed(0)} mm) no cabe en el tablero útil.`]));
+  if(T.warn)T.warn(S).forEach(x=>warn.push(x));
+  if(S.tpl!=='panel'&&S.tpl!=='cabecera'&&ribs.length){let A=0,Ay=0,c0=1e9,c1=-1e9;ribs.forEach(r=>{const o=r.outer;let a=0,cy=0;
+      for(let i=0;i<o.length;i++){const p=o[i],q=o[(i+1)%o.length],cr=p.y*q.z-q.y*p.z;a+=cr;cy+=(p.y+q.y)*cr}
+      a/=2;if(Math.abs(a)>1){A+=Math.abs(a);Ay+=Math.abs(a)*cy/(6*a)}o.forEach(p=>{if(p.z<3){c0=Math.min(c0,p.y);c1=Math.max(c1,p.y)}})});
+    let y0=1e9,y1=-1e9;ribs.forEach(r=>r.outer.forEach(p=>{y0=Math.min(y0,p.y);y1=Math.max(y1,p.y)}));
+    const cy=Ay/A,kg=A*S.t*1e-9*(S.mat==='mdf'?750:650),PL=60,
+      mB=kg*(c1-cy)-PL*Math.max(0,y1-c1),mF=kg*(cy-c0)-PL*Math.max(0,c0-y0);
+    if(cy<c0||cy>c1)warn.unshift(['e',`Inestable: el centro de masa (y=${cy.toFixed(0)} mm) cae fuera del apoyo al piso (${c0.toFixed(0)}–${c1.toFixed(0)} mm). Se voltea; ensancha la base o ancla al piso.`]);
+    else if(mB<0||mF<0)warn.unshift(['e',`Se voltea con ${PL} kg apoyados en el borde ${mB<0?'trasero':'frontal'} (peso propio ≈ ${kg.toFixed(0)} kg, apoyo ${c0.toFixed(0)}–${c1.toFixed(0)} mm). Agrega patas/base o ancla al piso.`]);
+    else warn.push(['ok',`Estable: peso ≈ ${kg.toFixed(0)} kg, centro de masa y=${cy.toFixed(0)} mm en apoyo ${c0.toFixed(0)}–${c1.toFixed(0)} mm; resiste ${PL} kg en cualquier borde.`])}
+  const low=RP.count.map((c,i)=>c<2?ribs[i].name:null).filter(Boolean);
+  if(!rods.length)warn.unshift(['e','No hay zona común para varillas: la forma varía demasiado o el margen al borde es muy grande.']);
+  else if(low.length)warn.unshift(['e',`${low.length} costilla(s) con menos de 2 varillas (${low.slice(0,6).join(', ')}${low.length>6?'…':''}): fíjalas con pegamento y espiga a la contigua o reduce el margen al borde.`]);
+  else warn.push(['ok',`Todas las costillas quedan atravesadas por ≥2 varillas (${rods.length} varillas, ${rods.filter(r=>r.extra).length} parciales de refuerzo).`]);
+  if(R.hole<=S.tool+0.2)warn.push(['w',`Barreno Ø${R.hole} con fresa Ø${S.tool}: usa taladrado o broca dedicada; el fresado interior no es posible.`]);
+  if(S.gap>0&&S.gap<S.t*0.5)warn.push(['w','Separación muy pequeña: el lijado entre costillas será casi imposible. Lija los perfiles antes de ensamblar.']);
+  if(S.gap>2.5*S.t)warn.push(['w','Separación > 2.5× espesor: superficie de asiento abierta, incómoda y con riesgo de pellizco. Prueba con prototipo.']);
+  if(S.tpl!=='panel'&&S.tpl!=='mesa'&&S.gap>0&&S.t<15)warn.push(['w','Costillas < 15 mm en mueble de asiento: riesgo de pandeo; usa 18 mm multiplay.']);
+  if(mat.grain&&!S.grainLock)warn.push(['w','Veta libre: algunas costillas pueden quedar con la veta transversal y romperse en zonas delgadas.']);
+  if(S.tpl==='mesa')warn.push(['ok','Mesa: considera cubierta de vidrio templado 8 mm apoyada en la cara superior plana.']);
+  if(S.tpl==='panel')warn.push(['ok','Panel: atornilla a muro con riel/French cleat oculto; las varillas solo alinean las costillas.']);
+  warn.push(['ok','Las aristas salen a 90°: presupuesta redondeo con router de mano (radio 3–6 mm) o lijado; es la operación que más tiempo consume.']);
+  // Producción
+  const passes=Math.ceil((S.t+0.3)/S.doc);let cut=0,paths=0,area=0,ribArea=0;
+  G.forEach((g,i)=>{if(!N.pl[i])return;cut+=g.cut;paths+=g.paths;area+=g.area;if(g.kind==='rib')ribArea+=g.area});
+  const nSh=N.sheets.length,shA=S.sheetL*S.sheetW,util=N.sheets.map(s=>s.items.reduce((a,i)=>a+G[i].area,0)/shA);
+  const tMach=cut*passes/S.feed*1.15+paths*passes*0.05+nSh*S.setup;
+  const rodLen=rods.reduce((a,q)=>a+((q.b-q.a)*pitch+S.t+2*(R.d*1.2+4)),0);
+  const sod=R.d+12,sid=R.d+0.5,sepVol=Math.PI/4*(sod*sod-sid*sid)*S.gap,tPrint=S.spacer==='3d'?Q*nSep*(sepVol/6+40)/3600:0;
+  const q=S.q,bbA=G.reduce((a,g,i)=>a+(N.pl[i]?(g.bw+S.ng)*(g.bh+S.ng):0),0);
+  const cMat=q.matMode==='prop'?bbA/shA*q.price*1.1:nSh*q.price,cMach=tMach/60*q.rateM;
+  const tLab=(ribs.length*q.minRib+nSep*0.4+45)*Q,cLab=tLab/60*q.rateL;
+  const cHw=Q*(rodLen/1000*q.rod+rods.length*2*q.nut+(S.spacer==='3d'?nSep*q.sp3d:S.spacer==='tubo'?nSep*S.gap/1000*q.tube:0));
+  const cFin=ribArea/1e6*2.3*q.fin,cCons=cMat*q.cons/100,sub=cMat+cMach+cLab+cHw+cFin+cCons,cInd=sub*q.ind/100,cost=sub+cInd;
+  return{ribs,rods,RP,G,N,warn,pitch,Lr,N0,passes,cut,area,nSh,util,tMach,tLab,tPrint,rodLen,nSep,discStack,sod,sid,
+    Q,cost:{cMat,cMach,cLab,cHw,cFin,cCons,cInd,lot:cost,cost:cost/Q,mayoreo:cost/Q/(1-q.mM/100),directo:cost/Q/(1-q.mD/100)},waste:nSh?1-area/(nSh*shA):0};
+}
+return{MAT,RODS,TPL,compute,dxf,svg,zip,stlTube,clamp};
+})();
+</script>
+
+<script>
+{
+const{MAT,RODS,TPL,compute,dxf,svg,zip,stlTube,clamp}=CORE;
+const $=s=>document.querySelector(s);
+const fm=(v,d=0)=>Number(v).toLocaleString('es-MX',{minimumFractionDigits:d,maximumFractionDigits:d}),money=v=>'$'+fm(v,0);
+const DEF={tpl:'banca',L:1800,D:450,H:420,A:70,f:1.5,ph:0,arch:120,endR:220,HB:820,bt:220,T:130,dome:130,light:70,sup:2.4,base:60,HW:750,LD:320,FB:240,WS:70,legs:1,lean:950,zb:450,fz:1.2,tv:1,tvW:1300,tvH:750,tvZ:250,
+  pair:true,t:18,gap:18,rod:'M10',nRods:3,edge:25,spacer:'3d',tool:6.35,feed:4000,doc:6,mat:'baltic',grainLock:true,sheetL:2440,sheetW:1220,margin:15,ng:10,setup:8,qty:1,
+  q:{matMode:'full',price:1850,rateM:450,rateL:120,minRib:7,rod:55,nut:6,sp3d:7,tube:60,fin:140,cons:8,ind:15,mM:35,mD:60}};
+let S=JSON.parse(JSON.stringify(DEF));
+try{const sv=JSON.parse(localStorage.getItem('ribParam_v1')||'null');if(sv&&TPL[sv.tpl])S=Object.assign(S,sv,{q:Object.assign({},DEF.q,sv.q||{})})}catch(e){}
+const CT=[
+ {g:'Dimensiones'},
+ {k:'L',l:'Largo',min:300,max:4000,st:1,u:'mm'},{k:'D',l:'Profundidad',min:80,max:2200,st:1,u:'mm'},{k:'H',l:'Altura',min:150,max:2400,st:1,u:'mm'},
+ {g:'Forma paramétrica'},
+ {k:'HB',l:'Altura de respaldo',min:500,max:1200,st:1,u:'mm'},{k:'bt',l:'Grueso del respaldo',min:100,max:400,st:1,u:'mm'},
+ {k:'T',l:'Grueso mínimo del perfil',min:60,max:300,st:1,u:'mm'},{k:'arch',l:'Arco inferior (aligerado)',min:0,max:400,st:1,u:'mm'},
+ {k:'dome',l:'Caída hacia los extremos',min:0,max:300,st:1,u:'mm'},{k:'light',l:'Pared del aligerado interior (0 = macizo)',min:0,max:200,st:1,u:'mm'},
+ {k:'sup',l:'Forma de planta (2 = elipse, 4 = rectángulo suave)',min:1.5,max:6,st:0.1,u:''},
+ {k:'HW',l:'Altura superficie de trabajo',min:600,max:900,st:1,u:'mm'},{k:'LD',l:'Fondo de barra de atención',min:150,max:600,st:1,u:'mm'},
+ {k:'FB',l:'Cuerpo frontal (grueso)',min:100,max:500,st:1,u:'mm'},{k:'WS',l:'Grueso del brazo de trabajo',min:40,max:200,st:1,u:'mm'},
+ {k:'lean',l:'Altura zona de apoyo de espalda',min:500,max:1500,st:1,u:'mm'},{k:'zb',l:'Inicio sobre el piso (flotante)',min:0,max:900,st:1,u:'mm'},
+ {k:'base',l:'Relieve mínimo',min:10,max:120,st:1,u:'mm'},{k:'fz',l:'Ondas en vertical',min:0,max:4,st:0.05,u:''},
+ {k:'A',l:'Amplitud de ola',min:0,max:300,st:1,u:'mm'},{k:'f',l:'Ondas a lo largo',min:0,max:5,st:0.05,u:''},{k:'ph',l:'Fase de la ola',min:0,max:360,st:1,u:'°'},
+ {k:'endR',l:'Redondeo de extremos',min:0,max:800,st:1,u:'mm'},
+ {chk:'tv',l:'Zona TV sin relieve',show:'tv'},
+ {chk:'legs',l:'Patas traseras en costillas extremas',show:'legs'},
+ {k:'tvW',l:'Ancho zona TV',min:300,max:3000,st:1,u:'mm'},{k:'tvH',l:'Alto zona TV',min:200,max:2000,st:1,u:'mm'},{k:'tvZ',l:'Altura de inicio zona TV',min:0,max:1500,st:1,u:'mm'},
+ {g:'Laminado'},
+ {sel:'mat'},
+ {k:'t',l:'Espesor real de costilla',min:6,max:40,st:0.1,u:'mm',chips:[12,15,18,25]},
+ {k:'gap',l:'Separación entre costillas',min:0,max:60,st:0.5,u:'mm',chips:[0,9,18,25]},
+ {chk:'grainLock',l:'Veta a lo largo de cada costilla'},
+ {read:'pitch'},
+ {g:'Ensamble'},
+ {sel:'rod'},
+ {k:'nRods',l:'Varillas principales',min:2,max:6,st:1,u:'pz'},
+ {k:'edge',l:'Margen barreno–borde',min:8,max:80,st:1,u:'mm'},
+ {sel:'spacer'},
+ {g:'CNC'},
+ {k:'tool',l:'Ø fresa',min:3,max:12.7,st:0.005,u:'mm',chips:[3.175,6.35,9.525]},
+ {k:'doc',l:'Profundidad por pasada',min:1,max:20,st:0.5,u:'mm'},
+ {k:'feed',l:'Avance',min:500,max:15000,st:100,u:'mm/min'},
+ {g:'Tablero y nesting'},
+ {k:'sheetL',l:'Largo de tablero',min:1000,max:3100,st:1,u:'mm'},{k:'sheetW',l:'Ancho de tablero',min:600,max:1600,st:1,u:'mm'},
+ {k:'qty',l:'Piezas a producir (lote)',min:1,max:20,st:1,u:'pz'},
+ {chk:'pair',l:'Emparejar costillas giradas 180° (ahorra tablero)'},
+ {k:'margin',l:'Margen perimetral',min:0,max:60,st:1,u:'mm'},{k:'ng',l:'Separación entre piezas',min:0,max:40,st:0.5,u:'mm'},
+ {k:'setup',l:'Montaje por tablero',min:0,max:30,st:1,u:'min'}
+];
+const SHAPEK=['lean','zb','HW','LD','FB','WS','HB','bt','T','arch','dome','light','sup','base','fz','A','f','ph','endR','tvW','tvH','tvZ'];
+$('#ctls').innerHTML=CT.map(c=>{
+  if(c.g)return`<h2>${c.g}</h2>`;
+  if(c.sel==='mat')return`<label class="sel"><span>Material</span><select id="s_mat">${Object.entries(MAT).map(([k,m])=>`<option value="${k}">${m.n}</option>`).join('')}</select></label>`;
+  if(c.sel==='rod')return`<label class="sel"><span>Varilla roscada</span><select id="s_rod">${Object.entries(RODS).map(([k,r])=>`<option value="${k}">${k} · barreno Ø${r.hole}</option>`).join('')}</select></label>`;
+  if(c.sel==='spacer')return`<label class="sel"><span>Separadores</span><select id="s_spacer"><option value="3d">Tubo impreso 3D (PLA/PETG)</option><option value="disco">Discos del mismo tablero</option><option value="tubo">Tubo comercial cortado</option></select></label>`;
+  if(c.chk)return`<label class="check"${c.show?` data-show="${c.show}"`:''}><input type="checkbox" id="s_${c.chk}">${c.l}</label>`;
+  if(c.read)return`<div class="read" id="r_${c.read}"></div>`;
+  return`<div class="ctl" data-k="${c.k}"${SHAPEK.includes(c.k)?` data-show="${c.k}"`:''}><label for="n_${c.k}"><span class="lt">${c.l}</span><span>${c.u}</span></label>
+   <div class="row"><input type="range" id="r_${c.k}" min="${c.min}" max="${c.max}" step="${c.st}" aria-label="${c.l}"><input type="number" id="n_${c.k}" min="${c.min}" max="${c.max}" step="${c.st}"></div>
+   ${c.chips?`<div class="chips">${c.chips.map(v=>`<button data-chip="${c.k}" data-v="${v}">${v}</button>`).join('')}</div>`:''}</div>`}).join('');
+$('#tpls').innerHTML=Object.entries(TPL).map(([k,t])=>`<button data-tpl="${k}">${t.name}</button>`).join('');
+const QT=[['price','Precio por tablero','$'],['rateM','Tarifa máquina','$/h'],['rateL','Mano de obra','$/h'],['minRib','Lijado/redondeo por costilla','min'],
+  ['rod','Varilla roscada','$/m'],['nut','Tuerca + rondana','$/pz'],['sp3d','Separador impreso','$/pz'],['tube','Tubo comercial','$/m'],
+  ['fin','Acabado','$/m²'],['cons','Consumibles','% mat.'],['ind','Indirectos','%'],['mM','Margen mayoreo','%'],['mD','Margen venta directa','%']];
+$('#qt').innerHTML=`<label for="q_matMode">Cobro de material</label><select id="q_matMode"><option value="full">Tableros completos</option><option value="prop">Proporcional +10%</option></select>`+
+  QT.map(([k,l,u])=>`<label for="q_${k}">${l} <span style="color:var(--mu)">${u}</span></label><input type="number" id="q_${k}" step="any" min="0">`).join('');
+
+function syncUI(){const T=TPL[S.tpl];
+  document.querySelectorAll('[data-tpl]').forEach(b=>b.classList.toggle('on',b.dataset.tpl===S.tpl));
+  CT.forEach(c=>{if(!c.k)return;$('#r_'+c.k).value=S[c.k];$('#n_'+c.k).value=S[c.k];
+    document.querySelector(`[data-k="${c.k}"] .lt`).textContent=(T.lab&&T.lab[c.k])||c.l});
+  document.querySelectorAll('[data-show]').forEach(el=>el.style.display=T.show.includes(el.dataset.show)?'':'none');
+  ['mat','rod','spacer'].forEach(k=>$('#s_'+k).value=S[k]);$('#s_grainLock').checked=S.grainLock;$('#s_pair').checked=S.pair!==false;$('#s_tv').checked=!!S.tv;$('#s_legs').checked=!!S.legs;
+  $('#s_grainLock').disabled=!MAT[S.mat].grain;$('#q_matMode').value=S.q.matMode;QT.forEach(([k])=>$('#q_'+k).value=S.q[k]);
+}
+let pend=0;const upd=()=>{if(!pend){pend=1;requestAnimationFrame(()=>{pend=0;run()})}};
+$('#ctls').addEventListener('input',e=>{const id=e.target.id;if(!id)return;
+  if(/^[rn]_/.test(id)){const k=id.slice(2),v=parseFloat(e.target.value);if(isNaN(v))return;S[k]=v;const o=$((id[0]==='r'?'#n_':'#r_')+k);if(o)o.value=v}
+  else if(id==='s_mat'){S.mat=e.target.value;S.q.price=MAT[S.mat].price;$('#q_price').value=S.q.price;$('#s_grainLock').disabled=!MAT[S.mat].grain}
+  else if(id==='s_grainLock')S.grainLock=e.target.checked;else if(id==='s_pair')S.pair=e.target.checked;else if(id==='s_tv')S.tv=e.target.checked?1:0;else if(id==='s_legs')S.legs=e.target.checked?1:0;
+  else if(id.startsWith('s_'))S[id.slice(2)]=e.target.value;
+  upd()});
+$('#ctls').addEventListener('change',e=>{if(e.target.id&&e.target.id.startsWith('n_')){const k=e.target.id.slice(2),c=CT.find(x=>x.k===k);S[k]=clamp(+e.target.value||c.min,c.min,c.max);syncUI();upd()}});
+$('#ctls').addEventListener('click',e=>{const b=e.target.closest('[data-chip]');if(!b)return;S[b.dataset.chip]=+b.dataset.v;syncUI();upd()});
+$('#tpls').addEventListener('click',e=>{const b=e.target.closest('[data-tpl]');if(!b)return;S.tpl=b.dataset.tpl;Object.assign(S,TPL[S.tpl].def);syncUI();V.reset();upd()});
+$('#qt').addEventListener('input',e=>{const k=e.target.id.slice(2);if(k==='matMode'){S.q.matMode=e.target.value;upd();return}const v=parseFloat(e.target.value);if(!isNaN(v)){S.q[k]=v;upd()}});
+
+/* ===================== VISTA 3D: costillas extruidas, varillas y separadores ===================== */
+const cv=$('#c3d'),cx=cv.getContext('2d');
+const V={yaw:-0.75,pitch:0.42,zoom:1,reset(){const wl=S.tpl==='panel'||S.tpl==='cabecera';this.yaw=wl?Math.PI-0.55:-0.75;this.pitch=wl?0.25:0.42;this.zoom=1}};
+let R=null,tab='3d';
+function draw3D(){
+  if(!R||tab!=='3d')return;
+  const dpr=window.devicePixelRatio||1,w=cv.clientWidth,h=cv.clientHeight;if(!w||!h)return;
+  cv.width=w*dpr;cv.height=h*dpr;cx.setTransform(dpr,0,0,dpr,0,0);cx.clearRect(0,0,w,h);
+  const{ym,zm}=R.RP.grid,Lx=R.Lr,ca=Math.cos(V.yaw),sa=Math.sin(V.yaw),cp=Math.cos(V.pitch),sp=Math.sin(V.pitch);
+  const P=(x,y,z)=>{const X=x-Lx/2,Y=y-ym/2,Z=z-zm/2,xr=X*ca-Y*sa,yr=X*sa+Y*ca;return[xr,-(Z*cp+yr*sp),yr*cp-Z*sp]};
+  const sc=Math.min(w,h)/Math.hypot(Lx,ym,zm)*0.95*V.zoom,ox=w/2,oy=h/2+8,S2=(q)=>[ox+q[0]*sc,oy+q[1]*sc];
+  const col=MAT[S.mat].col,Lt=[-0.4,-0.55,0.73],t=S.t,gx=sa*cp;
+  const shade=(n,k0=0.45)=>{const l=Math.max(0,n[0]*Lt[0]+n[1]*Lt[1]+n[2]*Lt[2]),k=k0+(1-k0)*l;return`rgb(${col.map(v=>Math.round(v*k)).join(',')})`};
+  const vis=n=>-(n[0]*sa+n[1]*ca)*cp+n[2]*sp>1e-6;
+  const ribs=R.ribs.slice().sort((a,b)=>gx>0?b.x0-a.x0:a.x0-b.x0);
+  const capPlus=vis([1,0,0]);
+  const rodCol='rgba(150,160,170,.95)',spCol=S.spacer==='3d'?'#ff6a13':S.spacer==='disco'?shade([0,-1,0.3]):'#9aa4ad';
+  const seg=(x0,x1,y,z,wd,c)=>{const a=S2(P(x0,y,z)),b=S2(P(x1,y,z));cx.beginPath();cx.moveTo(a[0],a[1]);cx.lineTo(b[0],b[1]);cx.lineWidth=Math.max(1.2,wd*sc);cx.strokeStyle=c;cx.lineCap='round';cx.stroke()};
+  const rodsIn=(i,j)=>R.rods.filter(q=>q.a<=Math.min(i,j)&&q.b>=Math.max(i,j));
+  const nutL=RODS[S.rod].d*1.2+4,dR=RODS[S.rod].d;
+  const ends=(far)=>R.rods.forEach(q=>{const A=R.ribs[q.a],B=R.ribs[q.b],lo=A.x0-nutL,hi=B.x0+t+nutL;
+    const farLow=gx>0?false:true;const low=far?farLow:!farLow;
+    if(low)seg(lo,A.x0,q.y,q.z,dR*1.9,'#6d7780');else seg(B.x0+t,hi,q.y,q.z,dR*1.9,'#6d7780')});
+  ends(true);
+  cx.lineJoin='round';
+  ribs.forEach((r,ix)=>{
+    const x0=r.x0,x1=r.x0+t,pts=r.outer,n=pts.length,quads=[];
+    for(let i=0;i<n;i++){const a=pts[i],b=pts[(i+1)%n],dy=b.y-a.y,dz=b.z-a.z,l=Math.hypot(dy,dz)||1,nn=[0,dz/l,-dy/l];if(!vis(nn))continue;
+      const q=[P(x0,a.y,a.z),P(x1,a.y,a.z),P(x1,b.y,b.z),P(x0,b.y,b.z)];quads.push({q,d:(q[0][2]+q[2][2])/2,c:shade(nn,0.35)})}
+    quads.sort((a,b)=>b.d-a.d).forEach(f=>{cx.beginPath();f.q.forEach((p,i)=>{const s=S2(p);i?cx.lineTo(s[0],s[1]):cx.moveTo(s[0],s[1])});cx.closePath();cx.fillStyle=f.c;cx.fill();cx.strokeStyle=f.c;cx.lineWidth=0.6;cx.stroke()});
+    const xc=capPlus?x1:x0;cx.beginPath();
+    [pts,...r.holes].forEach(poly=>poly.forEach((p,i)=>{const s=S2(P(xc,p.y,p.z));i?cx.lineTo(s[0],s[1]):cx.moveTo(s[0],s[1]);if(i===poly.length-1)cx.closePath()}));
+    cx.fillStyle=shade(capPlus?[1,0,0]:[-1,0,0],0.6);cx.fill('evenodd');cx.strokeStyle='rgba(40,25,10,.55)';cx.lineWidth=0.7;cx.stroke();
+    R.rods.forEach(q=>{if(q.a>r.k||q.b<r.k)return;cx.beginPath();for(let a=0;a<=16;a++){const s=S2(P(xc,q.y+dR*0.55*Math.cos(a/16*6.283),q.z+dR*0.55*Math.sin(a/16*6.283)));a?cx.lineTo(s[0],s[1]):cx.moveTo(s[0],s[1])}cx.fillStyle='#4a525a';cx.fill()});
+    const nx=ribs[ix+1];if(nx&&S.gap>0){const lo=Math.min(r.x0,nx.x0)+t,hi=Math.max(r.x0,nx.x0);
+      rodsIn(r.k,nx.k).forEach(q=>{seg(lo,hi,q.y,q.z,dR,rodCol);seg(lo+0.3,hi-0.3,q.y,q.z,R.sod,spCol)})}
+  });
+  ends(false);
+  const css=getComputedStyle(document.documentElement);cx.fillStyle=css.getPropertyValue('--ink').trim();cx.font='600 12px "JetBrains Mono",monospace';
+  const lab=(a,b,s)=>{const p=S2(P(...a)),q=S2(P(...b)),tw=cx.measureText(s).width;cx.fillText(s,clamp((p[0]+q[0])/2-tw/2,6,w-tw-6),clamp((p[1]+q[1])/2,16,h-40))};
+  lab([0,-70,0],[Lx,-70,0],fm(Lx,0)+' mm');lab([Lx+70,0,0],[Lx+70,ym,0],fm(ym,0)+' mm');lab([-70,-70,0],[-70,-70,zm],fm(zm,0)+' mm');
+}
+let drag=null;
+cv.addEventListener('pointerdown',e=>{drag={x:e.clientX,y:e.clientY};cv.setPointerCapture(e.pointerId);cv.style.cursor='grabbing'});
+cv.addEventListener('pointermove',e=>{if(!drag)return;V.yaw+=(e.clientX-drag.x)*0.008;V.pitch=clamp(V.pitch+(e.clientY-drag.y)*0.006,-0.2,1.5);drag={x:e.clientX,y:e.clientY};draw3D()});
+cv.addEventListener('pointerup',()=>{drag=null;cv.style.cursor='grab'});
+cv.addEventListener('wheel',e=>{e.preventDefault();V.zoom=clamp(V.zoom*(e.deltaY<0?1.1:0.9),0.3,6);draw3D()},{passive:false});
+cv.addEventListener('dblclick',()=>{V.reset();draw3D()});
+$('#vbtns').addEventListener('click',e=>{const v=e.target.dataset.v;if(!v)return;
+  ({iso:()=>V.reset(),front:()=>{V.yaw=(S.tpl==='panel'||S.tpl==='cabecera')?Math.PI:0;V.pitch=0.02},side:()=>{V.yaw=-Math.PI/2;V.pitch=0.02},top:()=>{V.yaw=0;V.pitch=1.5}})[v]();draw3D()});
+new ResizeObserver(()=>draw3D()).observe(cv);
+function setTab(t){tab=t;document.querySelectorAll('.tabs>[data-tab]').forEach(b=>b.classList.toggle('on',b.dataset.tab===t));
+  cv.style.display=t==='3d'?'':'none';$('#profPane').style.display=t==='prof'?'block':'none';$('#nestPane').style.display=t==='nest'?'block':'none';
+  $('#vbtns').style.visibility=t==='3d'?'':'hidden';hud();if(t==='3d')draw3D()}
+document.querySelectorAll('.tabs>[data-tab]').forEach(b=>b.onclick=()=>setTab(b.dataset.tab));
+
+/* ===================== Vista de perfiles superpuestos ===================== */
+function renderProf(){
+  const{ym,zm}=R.RP.grid,pad=60,Wv=ym+2*pad+Math.max(ym,zm)*0.32,Hv=zm+2*pad,M=R.ribs.length,hi=new Set([0,Math.floor((M-1)/2),M-1]);
+  const T=p=>`${(p.y+pad).toFixed(1)},${(zm-p.z+pad).toFixed(1)}`;
+  const ribs=R.ribs.map((r,i)=>[r.outer,...r.holes].map(poly=>`<polygon points="${poly.map(T).join(' ')}" fill="none" stroke="${hi.has(i)?'var(--ac)':'var(--mu)'}" stroke-opacity="${hi.has(i)?0.95:0.28}" stroke-width="${hi.has(i)?2.2:1}" vector-effect="non-scaling-stroke"/>`).join('')).join('');
+  const hr=RODS[S.rod].hole/2,fs=Math.max(12,Math.max(ym,zm)/45);
+  const rods=R.rods.map((q,i)=>`<circle cx="${q.y+pad}" cy="${zm-q.z+pad}" r="${R.RP.clr}" fill="none" stroke="var(--cy)" stroke-dasharray="4 4" vector-effect="non-scaling-stroke"/><circle cx="${q.y+pad}" cy="${zm-q.z+pad}" r="${hr}" fill="var(--cy)"/>
+    <text x="${q.y+pad+R.RP.clr+6}" y="${zm-q.z+pad+fs*0.35}" font-size="${fs}" fill="var(--ink)" font-family="JetBrains Mono,monospace">V${i+1} · ${R.ribs[q.a].name}–${R.ribs[q.b].name}</text>`).join('');
+  $('#profSvg').innerHTML=`<svg viewBox="0 0 ${Wv} ${Hv}" font-family="Archivo,sans-serif"><line x1="${pad-20}" y1="${zm+pad}" x2="${ym+pad+20}" y2="${zm+pad}" stroke="var(--ink)" stroke-opacity=".5" vector-effect="non-scaling-stroke"/>${ribs}${rods}</svg>`;
+}
+function renderNest(){
+  const c=MAT[S.mat].col.join(',');
+  $('#nestSvg').innerHTML=`<style>#nestSvg .sh{fill:color-mix(in srgb,rgb(${c}) 20%,var(--pn));stroke:var(--mu);stroke-width:2}#nestSvg .mg{fill:none;stroke:var(--mu);stroke-dasharray:8 6;opacity:.6}
+   #nestSvg .ext path,#nestSvg .ext circle{fill:rgb(${c});fill-opacity:.6;stroke:var(--ac);stroke-width:2}#nestSvg .ext path:hover{fill-opacity:.95}
+   #nestSvg .int path,#nestSvg .int circle{fill:var(--bg);stroke:var(--cy);stroke-width:1.6}#nestSvg .lb{fill:var(--ink);font-weight:600}#nestSvg .hd{fill:var(--ink);font-weight:600}</style>`+svg(R.G,R.N,S,S.name,true);
+}
+function hud(){if(!R)return;const r=R;
+  $('#hud').innerHTML=tab==='3d'?`<b>${TPL[S.tpl].name}</b> · ${r.ribs.length} costillas de ${S.t} mm cada ${fm(r.pitch,1)} mm · arrastra para orbitar, rueda para zoom`
+   :tab==='prof'?`<b>${r.ribs.length}</b> perfiles superpuestos · <b>${r.rods.length}</b> varillas ${S.rod} · círculo punteado = margen ${S.edge} mm al borde`
+   :`<b>${r.nSh}</b> tablero(s) · aprovechamiento <b>${fm((1-r.waste)*100,1)}%</b> · ${r.N.pairs} pares encajados a 180°`}
+
+function run(){
+  S.name=$('#pname').value.trim()||'Parametrico';
+  R=compute(S);const c=R.cost,r=R;
+  $('#r_pitch').innerHTML=`Paso = espesor + separación = <b>${fm(r.pitch,1)} mm</b><br>Costillas: <b>${r.ribs.length}</b>${r.N0!==r.ribs.length?` (${r.N0-r.ribs.length} omitidas por muy pequeñas)`:''} · largo real <b>${fm(r.Lr,0)} mm</b>`;
+  $('#hdrInfo').textContent=`${MAT[S.mat].n} ${S.t} mm · ${r.ribs.length} costillas · ${r.nSh} tablero(s)`;
+  const sepTxt=S.gap>0?(S.spacer==='disco'?`${fm(r.nSep)} discos (${r.discStack}/hueco)`:`${fm(r.nSep)} pz`):'Sin separación';
+  $('#kpi').innerHTML=`<div class="k big"><span>Costo de producción por pieza${r.Q>1?` · lote de ${r.Q} = ${money(c.lot)}`:''}</span><b>${money(c.cost)}</b></div>
+   <div class="k"><span>Costillas</span><b>${r.ribs.length}</b></div><div class="k"><span>Tableros ${S.sheetW}×${S.sheetL}${r.Q>1?' (lote)':''}</span><b>${r.nSh}</b></div>
+   <div class="k"><span>Aprovechamiento</span><b>${fm((1-r.waste)*100,1)}%</b></div><div class="k"><span>Corte CNC</span><b>${fm(r.cut/1000,0)} m</b></div>
+   <div class="k"><span>Tiempo CNC</span><b>${Math.floor(r.tMach/60)}h ${fm(r.tMach%60,0)}m</b></div><div class="k"><span>Varilla ${S.rod}</span><b>${fm(r.rodLen/1000,2)} m</b></div>
+   <div class="k"><span>Separadores</span><b style="font-size:15px">${sepTxt}</b></div><div class="k"><span>Impresión 3D</span><b>${S.spacer==='3d'&&S.gap>0?fm(r.tPrint,1)+' h':'—'}</b></div>
+   <div class="k"><span>Precio mayoreo</span><b>${money(c.mayoreo)}</b></div><div class="k"><span>Precio venta directa</span><b>${money(c.directo)}</b></div>`;
+  $('#sheetBars').innerHTML=r.util.map((u,i)=>`<div class="shrow"><span>Tablero ${i+1}</span><div class="bar"><i style="width:${(u*100).toFixed(1)}%"></i></div><span class="num" style="text-align:right">${fm(u*100,0)}%</span></div>`).join('');
+  $('#cost').innerHTML=[[S.q.matMode==='prop'?'Material proporcional':`Material (${r.nSh} × ${money(S.q.price)})`,c.cMat],[`Máquina (${fm(r.tMach,0)} min)`,c.cMach],
+    [`Lijado, redondeo y ensamble (${fm(r.tLab/60,1)} h)`,c.cLab],['Herrajes y separadores',c.cHw],['Acabado',c.cFin],['Consumibles',c.cCons],['Indirectos',c.cInd]]
+    .map(([l,v])=>`<div><span>${l}</span><b>${money(v)}</b></div>`).join('')+`<div class="tot"><span>Costo total${r.Q>1?' del lote':''}</span><b>${money(c.lot)}</b></div>${r.Q>1?`<div><span>Costo por pieza</span><b>${money(c.cost)}</b></div>`:''}
+    <div><span>Margen real mayoreo / directo</span><b>${money(c.mayoreo-c.cost)} / ${money(c.directo-c.cost)}</b></div>`;
+  $('#warn').innerHTML=r.warn.map(([k,m])=>`<li class="${k==='e'?'e':k==='ok'?'ok':''}">${m}</li>`).join('');
+  $('#rods').innerHTML=r.rods.map((q,i)=>`<tr><td>V${i+1}${q.extra?' <span style="color:var(--wa)">parcial</span>':''}</td><td class="n">${fm(q.y)}, ${fm(q.z)}</td><td class="n">${r.ribs[q.a].name}–${r.ribs[q.b].name}</td><td class="n">${fm((q.b-q.a)*r.pitch+S.t+2*(RODS[S.rod].d*1.2+4))}</td></tr>`).join('')||'<tr><td colspan="4">Sin varillas</td></tr>';
+  const ribsG=r.G.filter(g=>g.kind==='rib'&&!/^U\d+-/.test(g.name));
+  $('#bom').innerHTML=ribsG.map(g=>{const p=r.N.pl[r.G.indexOf(g)];return`<tr><td>${g.name}</td><td class="n">${fm(g.bw)}×${fm(g.bh)}</td><td class="n">${fm(g.x,0)}</td><td class="n">${p?p.sheet+1:'—'}</td></tr>`}).join('')+
+    (S.spacer==='disco'&&r.nSep?`<tr><td>Discos separadores</td><td class="n">Ø${RODS[S.rod].d+30}</td><td class="n">${r.nSep} pz</td><td></td></tr>`:'');
+  hud();if(tab==='3d')draw3D();renderProf();renderNest();
+  try{localStorage.setItem('ribParam_v1',JSON.stringify(S))}catch(e){}
+}
+$('#pname').addEventListener('input',upd);
+
+/* ===================== Exportación ===================== */
+let DL=null;
+(async()=>{try{if(window.claude&&typeof window.claude.use==='function'){DL=await window.claude.use('downloads');if(DL)$('#dlNote').innerHTML+=' Dentro de Claude, DXF y STL se entregan en .zip.'}}catch(e){}})();
+const toast=m=>{const t=$('#toast');t.textContent=m;t.classList.add('on');clearTimeout(toast.h);toast.h=setTimeout(()=>t.classList.remove('on'),3200)};
+const base=()=>`${(S.name||'Parametrico').replace(/[^\w\-]+/g,'_')}_${S.tpl}_${S.L}x${S.D}x${S.H}_e${S.t}`;
+async function save(name,data,mime){
+  if(DL){try{await DL.save({filename:name,data});toast('Archivo guardado: '+name)}catch(e){toast(e&&e.code==='declined'?'Descarga cancelada.':'No se pudo guardar ('+(e&&e.code||'error')+').')}return}
+  const blob=data instanceof Blob?data:new Blob([data],{type:mime}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500);toast('Descargando '+name)}
+const getDxf=()=>dxf(R.G,R.N,S,S.name),getSvg=()=>svg(R.G,R.N,S,S.name,false),getStl=()=>stlTube(R.sod,R.sid,Math.max(1,S.gap),'separador');
+function getCsv(){const rows=[['Orden','Costilla','Posicion_x_mm','Bbox_mm','Tablero','Varillas que la atraviesan']];
+  R.ribs.forEach((rb,i)=>{const g=R.G[i],p=R.N.pl[i];rows.push([i+1,rb.name,rb.x0.toFixed(1),g.bw.toFixed(0)+'x'+g.bh.toFixed(0),p?p.sheet+1:'NO CABE',R.rods.map((q,j)=>q.a<=i&&q.b>=i?'V'+(j+1):'').filter(Boolean).join(' ')])});
+  rows.push([]);rows.push(['Varilla','y_mm','z_mm','Desde','Hasta','Largo_mm','Separadores']);
+  R.rods.forEach((q,j)=>rows.push(['V'+(j+1),q.y.toFixed(1),q.z.toFixed(1),R.ribs[q.a].name,R.ribs[q.b].name,((q.b-q.a)*R.pitch+S.t+2*(RODS[S.rod].d*1.2+4)).toFixed(0),S.gap>0?(q.b-q.a)*(S.spacer==='disco'?R.discStack:1):0]));
+  rows.push([]);[['Separador',S.spacer==='3d'?`Tubo impreso OD ${R.sod} ID ${R.sid} L ${S.gap}`:S.spacer==='disco'?`Disco Ø${RODS[S.rod].d+30} e=${S.t}`:`Tubo comercial L ${S.gap}`],['Separadores totales',R.nSep],
+   ['Varilla total m',(R.rodLen/1000).toFixed(2)],['Tuercas ciegas/rondanas',R.rods.length*2],['Costo total MXN',R.cost.cost.toFixed(2)],['Precio mayoreo',R.cost.mayoreo.toFixed(2)],['Precio venta directa',R.cost.directo.toFixed(2)]].forEach(x=>rows.push(x));
+  return'﻿'+rows.map(r=>r.map(v=>/[",\n]/.test(String(v))?'"'+String(v).replace(/"/g,'""')+'"':v).join(',')).join('\r\n')}
+const Z=f=>new Blob([zip(f)],{type:'application/zip'});
+$('#bDxf').onclick=()=>DL?save(base()+'_dxf.zip',Z([{name:base()+'.dxf',data:getDxf()}])):save(base()+'.dxf',getDxf(),'application/dxf');
+$('#bSvg').onclick=()=>save(base()+'.svg',getSvg(),'image/svg+xml');
+$('#bCsv').onclick=()=>save(base()+'_ensamble.csv',getCsv(),'text/csv');
+$('#bStl').onclick=()=>{const n=`separador_${S.rod}_L${S.gap}.stl`;DL?save(n.replace('.stl','_stl.zip'),Z([{name:n,data:getStl()}])):save(n,getStl(),'model/stl')};
+$('#bZip').onclick=()=>save(base()+'_CNC.zip',Z([{name:base()+'.dxf',data:getDxf()},{name:base()+'.svg',data:getSvg()},{name:base()+'_ensamble.csv',data:getCsv()},{name:`separador_${S.rod}_L${S.gap}.stl`,data:getStl()}]));
+
+syncUI();V.reset();run();
+}
+</script>
+</body>
+</html>
