@@ -124,7 +124,7 @@
    Alcance: drive.file (la app solo ve los archivos que ella misma crea)
    ========================================================================= */
 
-const APP_VERSION = '1.3.0';
+const APP_VERSION = '1.4.0';
 const KEYS = { db:'ccmx_db_v1', sync:'ccmx_sync_v1', cfg:'ccmx_cfg_v1', token:'ccmx_token_v1', ui:'ccmx_ui_v1', device:'ccmx_device_v1' };
 const DRIVE = 'https://www.googleapis.com/drive/v3';
 const UPLOAD = 'https://www.googleapis.com/upload/drive/v3';
@@ -134,7 +134,7 @@ const MULTIPART_LIMIT = 5 * 1024 * 1024;        // > 5 MB → subida reanudable
 const TOMBSTONE_TTL = 90 * 24 * 3600 * 1000;     // registros borrados se purgan a los 90 días
 const POLL_MS = 30000;                            // revisión de cambios remotos
 
-const COLLECTIONS = ['proyectos','clientes','cotizaciones','compras','movimientos','avisos','catalogo','bitacora','hjPedidos','hjInformes','hjJornadas'];
+const COLLECTIONS = ['proyectos','clientes','cotizaciones','compras','movimientos','avisos','catalogo','bitacora','hjPedidos','hjInformes','hjJornadas','legal'];
 const PROCESOS = ['Router CNC','Láser CO₂','Carpintería','Impresión 3D','Herrería','Mixto'];
 const ETAPAS = ['Cotización','Aprobado','Diseño','Producción','Acabado','Listo para entregar','Entregado','Cancelado'];
 const ETAPAS_TALLER = ['Aprobado','Diseño','Producción','Acabado','Listo para entregar'];
@@ -151,7 +151,7 @@ const MOV_CATS = {
 const METODOS = ['Transferencia','Efectivo','Tarjeta','Cheque','Otro'];
 const AVISO_TIPOS = ['Entrega','Llamada','Reunión','Pago','Compra','Mantenimiento','Otro'];
 const CAT_TIPOS = ['Material','Producto','Servicio','Herraje','Consumible'];
-const AREAS = ['General','Marketing','Mensajes','Diseño','Tutoriales','Legal','Equipo y permisos','Importación','Sistemas','ERP'];
+const AREAS = ['General','Marketing','Mensajes','Diseño','Tutoriales','Equipo y permisos','Importación','Sistemas','ERP'];
 
 /* ---------------------------- Utilidades ---------------------------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -592,6 +592,7 @@ function eventsByDate() {
   list('avisos').forEach(a => add(a.fecha, { kind:'aviso', id:a.id, title:a.titulo, hora:a.hora, tipo:a.tipo, done:!!a.completado, color: a.completado ? '#94a3b8' : '#2563eb' }));
   list('proyectos').forEach(p => { if (p.etapa !== 'Cancelado') add(p.fechaEntrega, { kind:'entrega', id:p.id, title:`Entrega · ${p.nombre}`, done:p.etapa === 'Entregado', color: p.etapa === 'Entregado' ? '#94a3b8' : '#f97316' }); });
   list('cotizaciones').forEach(c => { if (c.estado === 'Enviada') add(c.vigencia, { kind:'cot', id:c.id, title:`Vence cotización ${c.folio}`, done:false, color:'#7c3aed' }); });
+  list('legal').forEach(d => { if (d.estado !== 'Archivado' && isYMD(d.revision)) add(d.revision, { kind:'legal', id:d.id, title:`Revisión legal · ${d.titulo}`, done:false, color:'#7c3aed', tipo:'Revisión legal' }); });
   list('hjPedidos').forEach(p => { if (p.etapa !== 'Cancelado') add(p.fechaEntrega, { kind:'hj', id:p.id, title:`Hebillas JA · ${p.titulo} (${hjPendiente(p)} pend.)`, done: p.etapa === 'Entregado', color: p.etapa === 'Entregado' ? '#94a3b8' : '#0891b2' }); });
   Object.values(map).forEach(arr => arr.sort((a, b) => String(a.hora || '99').localeCompare(String(b.hora || '99'))));
   return map;
@@ -626,6 +627,7 @@ const NAV = [
   { id:'finanzas', label:'Finanzas', icon:'wallet', group:'Operación' },
   { id:'agenda', label:'Agenda', icon:'calendar-days', group:'Operación' },
   { id:'catalogo', label:'Catálogo y costos', icon:'package', group:'Operación' },
+  { id:'legal', label:'Legal', icon:'scale', group:'Operación' },
   { id:'bitacora', label:'Bitácora por área', icon:'notebook-pen', group:'Operación' },
   { id:'ajustes', label:'Drive, respaldo y ajustes', icon:'settings', group:'Sistema' }
 ];
@@ -789,7 +791,7 @@ function dayPanelHTML() {
     ${e.length ? `<div class="space-y-2">${e.map(x => eventRow(x)).join('')}</div>` : `<div class="text-sm text-slate-400 py-3">Sin compromisos este día.</div>`}</div>`;
 }
 function eventRow(x) {
-  const act = x.kind === 'aviso' ? 'edit-aviso' : x.kind === 'entrega' ? 'open-proyecto' : x.kind === 'hj' ? 'open-hj' : 'edit-cotizacion';
+  const act = x.kind === 'aviso' ? 'edit-aviso' : x.kind === 'entrega' ? 'open-proyecto' : x.kind === 'hj' ? 'open-hj' : x.kind === 'legal' ? 'legal-view' : 'edit-cotizacion';
   return `<div class="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2">
     ${x.kind === 'aviso' ? `<button data-act="toggle-aviso" data-id="${x.id}" class="shrink-0 ${x.done ? 'text-green-600' : 'text-slate-300'}" aria-label="Completar">${ic(x.done ? 'circle-check' : 'circle', 'w-5 h-5')}</button>` : `<span class="status-dot" style="background:${x.color}"></span>`}
     <button data-act="${act}" data-id="${x.id}" class="flex-1 min-w-0 text-left"><div class="text-sm font-medium truncate ${x.done ? 'line-through text-slate-400' : ''}">${esc(x.title)}</div><div class="text-[11px] text-slate-500">${x.hora ? esc(x.hora) + ' · ' : ''}${x.tipo ? esc(x.tipo) : x.kind === 'entrega' ? 'Entrega de proyecto' : x.kind === 'hj' ? 'Entrega Hebillas JA' : 'Cotización'}</div></button></div>`;
@@ -1277,6 +1279,7 @@ function openExpediente(id) {
       ${cli && cli.telefono ? `<a class="btn btn-sm" target="_blank" rel="noopener" href="https://wa.me/${waNumber(cli.telefono)}?text=${encodeURIComponent(`Hola ${cli.nombre}, te comparto el avance de tu proyecto "${p.nombre}" (${p.folio}): ${p.etapa}, ${num(p.avance)}%.`)}">${ic('message-circle')}Avance por WhatsApp</a>` : ''}
     </div>
     ${attachmentsPanel('proyectos', p)}
+    ${(() => { const ld = list('legal').filter(x => x.proyectoId === p.id); return `<div><div class="flex items-center justify-between mb-2"><div class="font-bold">Documentos legales</div><button class="btn btn-sm" data-act="legal-gen-proj" data-id="${p.id}">${ic('file-signature')}Generar contrato</button></div>${ld.length ? `<div class="space-y-2">${ld.map(x => `<button class="w-full text-left flex justify-between items-center rounded-xl border border-slate-200 px-3 py-2" data-act="legal-view" data-id="${x.id}"><span class="text-sm">${esc(x.titulo)}</span>${badge(x.estado, legalColor(x.estado))}</button>`).join('')}</div>` : '<div class="text-sm text-slate-400">Sin documentos vinculados.</div>'}</div>`; })()}
     <div><div class="font-bold mb-2">Bitácora del proyecto</div>
       <div class="flex gap-2"><input id="expNote" class="inp" placeholder="Agregar nota (cambio, acuerdo, incidencia)…"><button class="btn btn-dark" data-act="exp-note" data-id="${p.id}">${ic('send')}</button></div>
       <div class="mt-2 space-y-2">${(p.bitacora || []).slice().reverse().map(n => `<div class="rounded-xl border border-slate-200 px-3 py-2 text-sm"><div class="whitespace-pre-line">${esc(n.texto)}</div><div class="text-[11px] text-slate-400 mt-1">${fmtDateTime(n.at)}${n.device ? ' · ' + esc(n.device) : ''}</div></div>`).join('') || '<div class="text-sm text-slate-400">Sin notas.</div>'}</div>
@@ -1306,7 +1309,7 @@ async function handleAttachFiles(files) {
   const { col, id } = attachTarget;
   const rec = getRec(col, id); if (!rec) return;
   const prog = $('#attachProgress');
-  const prefix = rec.folio || (col === 'compras' ? 'COMPRA-' + (rec.proveedor || '') : col === 'movimientos' ? 'MOV-' + (rec.fecha || '') : col);
+  const prefix = rec.folio || (col === 'legal' ? 'LEGAL-' + String(rec.categoria || '').slice(0, 20) : col === 'compras' ? 'COMPRA-' + (rec.proveedor || '') : col === 'movimientos' ? 'MOV-' + (rec.fecha || '') : col);
   let ok = 0;
   for (let i = 0; i < files.length; i++) {
     const f = files[i];
@@ -1327,6 +1330,7 @@ function reopenAfterAttach(col, id) {
   else if (col === 'compras') openCompraForm(id);
   else if (col === 'movimientos') openMovForm(id);
   else if (col === 'hjPedidos') openHJ(id);
+  else if (col === 'legal') openLegalView(id);
 }
 
 /* ---- Clientes ---- */
@@ -2375,6 +2379,174 @@ Object.assign(H, {
 });
 
 
+/* =====================================================================
+   LEGAL · control documental (contratos, confidencialidad, PI, proveedores, avisos)
+   ===================================================================== */
+const LEGAL_CATS = [
+  { v:'Contratos con clientes', d:'Alcance, anticipo, entregas, garantías y aceptación', icon:'file-signature' },
+  { v:'Convenios de confidencialidad', d:'Diseños, planos, archivos CNC y propiedad del cliente', icon:'lock' },
+  { v:'Marcas y propiedad intelectual', d:'CNC Manufacturing, Madera Urbana, Huellas 3D y diseños propios', icon:'badge-check' },
+  { v:'Proveedores y subcontratistas', d:'Acuerdos de servicio, responsabilidad y condiciones de compra', icon:'truck' },
+  { v:'Avisos y autorizaciones', d:'Privacidad, uso de imágenes y aceptación digital', icon:'shield-check' }
+];
+const LEGAL_ESTADOS = ['Pendiente', 'Borrador', 'En revisión', 'Vigente', 'Vencido', 'Archivado'];
+const LEGAL_TIPOS = ['Borrador / plantilla', 'Documento generado', 'Contrato firmado', 'Convenio firmado', 'Aviso publicado', 'Autorización firmada', 'Registro / título', 'Otro'];
+const legalColor = e => ({ Pendiente:'#d97706', Borrador:'#64748b', 'En revisión':'#7c3aed', Vigente:'#15803d', Vencido:'#b91c1c', Archivado:'#94a3b8' }[e] || '#64748b');
+const legalPlaceholders = txt => [...new Set(String(txt || '').match(/\[[^\]\n]{2,90}\]/g) || [])];
+const legalRevSoon = d => isYMD(d.revision) && d.estado !== 'Archivado' && daysFromToday(d.revision) <= 30;
+const legalTemplateOf = cat => list('legal').filter(d => d.categoria === cat && d.plantilla).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))[0];
+
+PAGES.legal = () => {
+  const all = list('legal');
+  const rows = all.filter(d => (!ui.f.legCat || d.categoria === ui.f.legCat) && (!ui.f.legEst || d.estado === ui.f.legEst) && matchQ('legal', d.titulo, d.categoria, d.vinculo || '', d.responsable || '', clientName(d) === '—' ? '' : clientName(d)))
+    .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+  const pend = all.filter(d => d.estado === 'Pendiente' || (!d.contenido && !(d.adjuntos || []).length && !d.archivoUrl)).length;
+  const soon = all.filter(legalRevSoon);
+  return `<div class="space-y-5">
+    <div class="flex items-end justify-between gap-3 flex-wrap"><div><div class="text-[11px] font-bold tracking-widest text-brand-600">CONTROL DOCUMENTAL</div><h1 class="text-2xl font-extrabold">Legal</h1><p class="text-sm text-slate-500">Expediente operativo para contratos, confidencialidad, propiedad intelectual, proveedores y autorizaciones.</p></div>
+      <button class="btn btn-primary" data-act="legal-new">${ic('plus')}Agregar documento</button></div>
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      ${kpiCard('Documentos registrados', all.length, 'Expediente central', 'folder-open', '#2563eb')}
+      ${kpiCard('Pendientes', pend, 'Requieren cargar o redactar', 'file-warning', '#d97706')}
+      ${kpiCard('En revisión', all.filter(d => d.estado === 'En revisión').length, 'Validación jurídica pendiente', 'scale', '#7c3aed')}
+      ${kpiCard('Vigentes', all.filter(d => d.estado === 'Vigente').length, 'Controlados y aplicables', 'circle-check', '#15803d')}
+    </div>
+    <div class="card !bg-amber-50 !border-amber-200 text-sm"><b>Regla de control.</b> Los borradores base son una estructura de trabajo, no sustituyen asesoría jurídica. Antes de firmar o publicar, valida razón social, domicilio, obligaciones, jurisdicción y tratamiento de datos con un abogado en México.</div>
+    ${soon.length ? `<div class="card !border-red-200 !bg-red-50"><div class="font-bold text-red-700 mb-2 flex items-center gap-2">${ic('calendar-clock')}Revisión próxima o vencida</div><div class="flex flex-wrap gap-2">${soon.map(d => `<button class="btn btn-sm" data-act="legal-view" data-id="${d.id}">${esc(d.titulo)} · ${fmtDateShort(d.revision)}</button>`).join('')}</div></div>` : ''}
+    <div class="grid sm:grid-cols-2 xl:grid-cols-5 gap-3">${LEGAL_CATS.map(c => { const docs = all.filter(d => d.categoria === c.v); const tpl = legalTemplateOf(c.v); const st = tpl ? tpl.estado : 'Pendiente'; return `
+      <div class="card flex flex-col gap-2"><div class="flex items-start justify-between gap-2"><div class="w-10 h-10 rounded-xl bg-slate-100 grid place-items-center text-slate-600">${ic(c.icon, 'w-5 h-5')}</div>${badge(st, legalColor(st))}</div>
+        <div class="font-bold leading-tight">${esc(c.v)}</div><div class="text-[12px] text-slate-500 flex-1">${esc(c.d)}</div><div class="text-[11px] text-slate-400">${docs.length} documento(s)</div>
+        <div class="flex flex-wrap gap-1">${tpl ? `<button class="btn btn-sm" data-act="legal-view" data-id="${tpl.id}">${ic('eye')}Ver contenido</button>` : ''}
+          <button class="btn btn-sm" data-act="legal-new" data-cat="${esc(c.v)}" data-tipo="Contrato firmado">${ic('upload')}Cargar</button>
+          ${tpl ? `<button class="btn btn-sm" data-act="legal-generate" data-id="${tpl.id}">${ic('file-plus')}Generar</button><button class="btn btn-sm" data-act="legal-dup" data-id="${tpl.id}" title="Crear otra plantilla">${ic('copy')}</button>` : `<button class="btn btn-sm" data-act="legal-new" data-cat="${esc(c.v)}" data-tipo="Borrador / plantilla">${ic('plus')}Crear plantilla</button>`}</div></div>`; }).join('')}</div>
+    <section class="space-y-3"><div class="flex items-center justify-between gap-2 flex-wrap"><div><div class="font-bold">Expediente legal</div><div class="text-[12px] text-slate-500">Versiona documentos, vincúlalos a un proyecto, cliente o proveedor y conserva la fecha de revisión.</div></div><div class="text-sm text-slate-500">${rows.length} registro(s)</div></div>
+      <div class="flex flex-wrap gap-2">${searchBox('legal', 'Buscar documento, cliente o proveedor…')}${selectFilter('legCat', 'Categoría', LEGAL_CATS.map(c => c.v))}${selectFilter('legEst', 'Estado', LEGAL_ESTADOS)}</div>
+      <div class="card !p-0 overflow-hidden">${rows.length ? `<div class="scroll-x"><table class="tbl"><thead><tr><th>Documento</th><th class="hidden md:table-cell">Categoría</th><th>Estado</th><th>Versión</th><th class="hidden sm:table-cell">Revisión</th></tr></thead><tbody>
+        ${rows.map(d => `<tr class="row-link" data-act="legal-view" data-id="${d.id}"><td><div class="font-semibold">${esc(d.titulo)}</div><div class="text-[11px] text-slate-500">${esc(d.tipo || '')}${d.plantilla ? ' · Plantilla' : ''}${d.proyectoId ? ' · ' + esc(projLabel(d.proyectoId)) : d.clienteId ? ' · ' + esc(clientShort(d)) : d.vinculo ? ' · ' + esc(d.vinculo) : ''}${(d.adjuntos || []).length ? ' · 📎' + d.adjuntos.length : ''}</div></td>
+          <td class="hidden md:table-cell text-sm">${esc(d.categoria)}</td><td>${badge(d.estado, legalColor(d.estado))}</td><td class="text-sm">v${esc(d.version || '1.0')}</td><td class="hidden sm:table-cell text-sm ${legalRevSoon(d) ? 'text-red-600 font-semibold' : ''}">${fmtDate(d.revision)}</td></tr>`).join('')}</tbody></table></div>`
+        : emptyState('Sin documentos legales. Importa los del sistema anterior desde Ajustes → Restaurar, o agrega uno nuevo.', `<button class="btn btn-primary btn-sm" data-act="legal-new">${ic('plus')}Agregar documento</button>`)}</div>
+    </section>
+  </div>`;
+};
+function legalHighlight(txt) { return esc(txt).replace(/\[[^\]\n]{2,90}\]/g, m => `<mark class="bg-amber-200/70 rounded px-0.5">${m}</mark>`); }
+function openLegalView(id) {
+  const d = getRec('legal', id); if (!d) { closeModal(); return; }
+  const ph = legalPlaceholders(d.contenido);
+  formCtx = null;
+  openModal(`${modalHead(d.titulo, `${d.categoria} · v${d.version || '1.0'}`)}
+  <div class="modal-body space-y-4">
+    <div class="flex flex-wrap gap-2">${badge(d.estado, legalColor(d.estado))}${badge(d.tipo || '—', '#475569')}${d.plantilla ? badge('Plantilla', '#2563eb') : ''}${ph.length ? badge(ph.length + ' campo(s) por llenar', '#d97706') : ''}</div>
+    <div class="grid sm:grid-cols-2 gap-x-6 text-sm">${[['Responsable', d.responsable], ['Vigente desde', d.vigencia ? fmtDate(d.vigencia) : ''], ['Revisión', d.revision ? fmtDate(d.revision) : ''], ['Proyecto', d.proyectoId ? projLabel(d.proyectoId) : ''], ['Cliente', d.clienteId ? clientName(d) : ''], ['Vinculado a', d.vinculo], ['Archivo externo', d.archivoUrl], ['Origen', d.origen]].filter(r => r[1]).map(([l, v]) => `<div class="flex justify-between gap-3 py-1.5 border-b border-slate-100"><span class="text-slate-500">${l}</span><span class="font-medium text-right break-all">${esc(v)}</span></div>`).join('')}</div>
+    <div class="flex flex-wrap gap-2">
+      <button class="btn btn-sm" data-act="legal-edit" data-id="${d.id}">${ic('pencil')}Editar</button>
+      ${d.contenido && ph.length ? `<button class="btn btn-sm btn-primary" data-act="legal-generate" data-id="${d.id}">${ic('file-plus')}Generar documento para cliente/proyecto</button>` : ''}
+      ${d.contenido ? `<button class="btn btn-sm" data-act="legal-print" data-id="${d.id}">${ic('printer')}Imprimir / PDF</button><button class="btn btn-sm" data-act="legal-word" data-id="${d.id}">${ic('file-text')}Descargar Word</button><button class="btn btn-sm" data-act="legal-copy" data-id="${d.id}">${ic('copy')}Copiar texto</button>` : ''}
+      <button class="btn btn-sm" data-act="legal-dup" data-id="${d.id}">${ic('copy-plus')}Nueva versión</button>
+    </div>
+    ${attachmentsPanel('legal', d).replace('Expediente digital · archivos en Drive', 'Archivos firmados y anexos (Drive)')}
+    ${d.contenido ? `<div><div class="font-bold mb-2">Contenido</div><div class="rounded-xl border border-slate-200 bg-white p-4 max-h-[55vh] overflow-y-auto text-[13.5px] leading-relaxed whitespace-pre-wrap font-serif">${legalHighlight(d.contenido)}</div>${ph.length ? '<div class="text-[11px] text-slate-500 mt-1">Lo resaltado en amarillo son campos por llenar.</div>' : ''}</div>` : '<div class="text-sm text-slate-400">Sin texto capturado: carga el archivo firmado o edita el documento para redactarlo.</div>'}
+    ${(d.bitacora || []).length ? `<details><summary class="cursor-pointer text-sm font-semibold">Historial (${d.bitacora.length})</summary><div class="mt-2 space-y-1">${d.bitacora.slice().reverse().map(n => `<div class="text-[12px] text-slate-600">${fmtDateTime(n.at)} · ${esc(n.texto)}</div>`).join('')}</div></details>` : ''}
+  </div>
+  <div class="modal-foot"><button class="btn btn-danger mr-auto" data-act="legal-del" data-id="${d.id}">${ic('trash-2')}Eliminar</button><button class="btn" data-act="modal-close">Cerrar</button></div>`, 'xl');
+  ui.openLegal = d.id;
+}
+const LEGAL_FIELDS = () => [
+  { k:'titulo', label:'Título del documento', req:true, full:true },
+  { k:'categoria', label:'Categoría', type:'select', options: LEGAL_CATS.map(c => c.v) },
+  { k:'tipo', label:'Tipo', type:'select', options: LEGAL_TIPOS },
+  { k:'estado', label:'Estado', type:'select', options: LEGAL_ESTADOS, def:'Borrador' },
+  { k:'version', label:'Versión', def:'1.0' },
+  { k:'responsable', label:'Responsable' },
+  { k:'plantilla', label:'', type:'checkbox', text:'Es plantilla (base para generar documentos)' },
+  { k:'vigencia', label:'Vigente desde', type:'date' }, { k:'revision', label:'Próxima revisión', type:'date' },
+  { k:'proyectoId', label:'Proyecto vinculado', type:'project' }, { k:'clienteId', label:'Cliente vinculado', type:'client' },
+  { k:'vinculo', label:'Otro vínculo (proveedor, marca, socio…)', full:true },
+  { k:'archivoUrl', label:'Enlace a archivo externo (opcional)', type:'url', full:true },
+  { k:'contenido', label:'Contenido / texto del documento', type:'textarea', rows:16 }
+];
+function openLegalForm(id, preset = {}) {
+  const d = id ? getRec('legal', id) : null;
+  openForm({ title: d ? 'Editar documento legal' : 'Agregar documento legal', size:'xl', fields: LEGAL_FIELDS(), back: d ? () => openLegalView(d.id) : null,
+    data: d || { categoria: LEGAL_CATS[0].v, tipo:'Borrador / plantilla', estado:'Borrador', version:'1.0', responsable: db.settings.usuario || '', ...preset },
+    extra: d ? '' : `<div class="mt-3 text-[12px] text-slate-500">Guarda el documento y después adjunta el PDF firmado desde su ficha (se guarda en Drive).</div>`,
+    onDelete: d ? () => { if (confirm(`¿Eliminar "${d.titulo}"? Los archivos en Drive se conservan.`)) { removeRec('legal', d.id); closeModal(); } } : null,
+    onSave: v => {
+      resolveClient(v);
+      const changed = d && d.contenido !== v.contenido;
+      const nid = upsert('legal', d ? { id:d.id, ...v, bitacora:[...(d.bitacora || []), { texto: changed ? 'Contenido editado' : 'Datos actualizados', at:Date.now(), device:deviceLabel() }] } : { ...v, adjuntos:[], bitacora:[{ texto:'Documento creado', at:Date.now(), device:deviceLabel() }] }, { silent:true });
+      render(); toast('Documento guardado', 'ok'); openLegalView(nid);
+    } });
+}
+function legalPrefill(ph, ctx) {
+  const k = ph.toUpperCase(); const n = new Date();
+  const cli = ctx.cliente, pr = ctx.proyecto;
+  if (/^\[DÍA\]$/.test(k)) return String(n.getDate());
+  if (/^\[MES\]$/.test(k)) return n.toLocaleDateString('es-MX', { month:'long' });
+  if (/^\[AÑO\]$/.test(k)) return String(n.getFullYear());
+  if (/^\[FECHA\]$/.test(k)) return fmtDate(today());
+  if (/MUNICIPIO|ZAPOPAN \/ GUADALAJARA/.test(k)) return 'Zapopan';
+  if (/CNC MANUFACTURING MX \/ MADERA URBANA/.test(k) || /PRESTADOR\]/.test(k)) return db.settings.empresa || '';
+  if (/NOMBRE \/ FOLIO/.test(k) && pr) return `${pr.nombre} (${pr.folio})`;
+  if (/CLIENTE/.test(k) && cli) return cli.empresa ? `${cli.empresa}` : cli.nombre;
+  if (/OTRA PARTE|CLIENTE \/ SOCIO/.test(k) && cli) return cli.empresa || cli.nombre;
+  if (/NOMBRE COMPLETO\]/.test(k) && cli) return cli.nombre;
+  if (/RFC/.test(k) && cli && cli.rfc) return (cli.empresa || cli.nombre) + ' / ' + cli.rfc;
+  if (/router CNC \/ láser/i.test(ph) && pr) return pr.proceso || '';
+  if (/FECHA ESTIMADA/.test(k) && pr && isYMD(pr.fechaEntrega)) return fmtDate(pr.fechaEntrega);
+  return '';
+}
+function openLegalGenerate(id) {
+  const d = getRec('legal', id); if (!d) return;
+  const ph = legalPlaceholders(d.contenido);
+  const ps = list('proyectos').filter(p => p.etapa !== 'Cancelado').sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  const cs = list('clientes').sort((a, b) => String(a.nombre).localeCompare(String(b.nombre)));
+  formCtx = null; ui.legGen = { id };
+  openModal(`${modalHead('Generar documento', `${d.titulo} · ${ph.length} campos`)}
+  <div class="modal-body space-y-4">
+    <div class="grid sm:grid-cols-2 gap-3">
+      <label class="block"><span class="lbl">Proyecto (opcional)</span><select id="lg_proj" class="inp" data-lg-ctx="1"><option value="">— Ninguno —</option>${ps.map(p => `<option value="${p.id}">${esc(p.folio)} · ${esc(p.nombre)}</option>`).join('')}</select></label>
+      <label class="block"><span class="lbl">Cliente / otra parte (opcional)</span><select id="lg_cli" class="inp" data-lg-ctx="1"><option value="">— Ninguno —</option>${cs.map(c => `<option value="${c.id}">${esc(c.nombre)}${c.empresa ? ' · ' + esc(c.empresa) : ''}</option>`).join('')}</select></label>
+    </div>
+    <div class="text-[12px] text-slate-500">Al elegir proyecto o cliente se llenan los campos que se pueden deducir. Revisa y completa el resto; los vacíos quedan entre corchetes en el documento.</div>
+    <div class="grid sm:grid-cols-2 gap-3" id="lgFields">${ph.map((p, i) => `<label class="block"><span class="lbl">${esc(p.slice(1, -1))}</span><input class="inp" data-ph="${i}" placeholder="${esc(p)}"></label>`).join('')}</div>
+  </div>
+  <div class="modal-foot"><button class="btn" data-act="legal-view" data-id="${d.id}">Cancelar</button><button class="btn btn-primary" data-act="legal-gen-go">${ic('file-check')}Crear documento</button></div>`, 'xl');
+  window.__lgPh = ph;
+  legalGenFill();
+}
+function legalGenFill() {
+  const pr = getRec('proyectos', ($('#lg_proj') || {}).value); let cli = getRec('clientes', ($('#lg_cli') || {}).value);
+  if (!cli && pr && pr.clienteId) { cli = getRec('clientes', pr.clienteId); if (cli && $('#lg_cli')) $('#lg_cli').value = cli.id; }
+  $$('#lgFields [data-ph]').forEach(inp => { const v = legalPrefill(window.__lgPh[+inp.dataset.ph], { proyecto: pr, cliente: cli }); if (v && !inp.dataset.touched) inp.value = v; });
+}
+function legalGenGo() {
+  const d = getRec('legal', ui.legGen && ui.legGen.id); if (!d) return;
+  let txt = d.contenido;
+  $$('#lgFields [data-ph]').forEach(inp => { const v = inp.value.trim(); if (v) txt = txt.split(window.__lgPh[+inp.dataset.ph]).join(v); });
+  const pr = getRec('proyectos', $('#lg_proj').value), cli = getRec('clientes', $('#lg_cli').value);
+  const quien = (cli && (cli.empresa || cli.nombre)) || (pr && pr.nombre) || 'sin vincular';
+  const nid = upsert('legal', { titulo: `${d.categoria} — ${quien}`, categoria: d.categoria, tipo:'Documento generado', estado:'Borrador', version:'1.0', responsable: db.settings.usuario || '', proyectoId: pr ? pr.id : '', clienteId: cli ? cli.id : '', contenido: txt, plantilla:false, origen:`Generado desde "${d.titulo}" v${d.version || '1.0'}`, adjuntos:[], bitacora:[{ texto:`Generado desde plantilla ${d.titulo}`, at:Date.now(), device:deviceLabel() }] }, { silent:true });
+  if (pr) upsert('proyectos', { id: pr.id, bitacora:[...(pr.bitacora || []), { texto:`Documento legal generado: ${d.categoria}`, at:Date.now(), device:deviceLabel() }] }, { silent:true });
+  render(); toast('Documento generado', 'ok'); openLegalView(nid);
+}
+function legalHtml(d) {
+  return `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>${esc(d.titulo)}</title><style>body{font-family:Georgia,'Times New Roman',serif;margin:28mm 22mm;color:#111;font-size:11.5pt;line-height:1.55}pre{white-space:pre-wrap;font-family:inherit;margin:0}.meta{font-family:Arial,sans-serif;font-size:9pt;color:#666;border-bottom:1px solid #ccc;padding-bottom:6px;margin-bottom:18px}@media print{button{display:none}body{margin:18mm}}</style></head><body><div class="meta">${esc(db.settings.empresa || '')} · ${esc(d.categoria)} · v${esc(d.version || '1.0')} · ${esc(d.estado)}</div><pre>${esc(d.contenido)}</pre></body></html>`;
+}
+Object.assign(H, {
+  'legal-new': el => openLegalForm(null, el.dataset.cat ? { categoria: el.dataset.cat, tipo: el.dataset.tipo || 'Borrador / plantilla', plantilla: el.dataset.tipo === 'Borrador / plantilla', titulo: el.dataset.tipo === 'Borrador / plantilla' ? `Plantilla — ${el.dataset.cat}` : `${el.dataset.cat} — ` } : {}),
+  'legal-view': el => openLegalView(el.dataset.id),
+  'legal-edit': el => openLegalForm(el.dataset.id),
+  'legal-del': el => { const d = getRec('legal', el.dataset.id); if (d && confirm(`¿Eliminar "${d.titulo}"?`)) { removeRec('legal', d.id); closeModal(); } },
+  'legal-dup': el => { const d = getRec('legal', el.dataset.id); if (!d) return; const v = String(d.version || '1.0').split('.'); const nv = `${v[0]}.${(parseInt(v[1] || '0', 10) || 0) + 1}`; const { id, createdAt, updatedAt, adjuntos, bitacora, ...rest } = d; const nid = upsert('legal', { ...rest, version: nv, estado:'Borrador', titulo: d.titulo.replace(/\s*\(v[\d.]+\)$/, '') + ` (v${nv})`, origen:`Copia de "${d.titulo}" v${d.version || '1.0'}`, adjuntos:[], bitacora:[{ texto:`Creado como nueva versión de ${d.titulo}`, at:Date.now(), device:deviceLabel() }] }, { silent:true }); render(); toast(`Versión ${nv} creada`, 'ok'); openLegalForm(nid); },
+  'legal-generate': el => openLegalGenerate(el.dataset.id),
+  'legal-gen-go': () => legalGenGo(),
+  'legal-print': el => { const d = getRec('legal', el.dataset.id); if (!d) return; const w = window.open('', '_blank'); if (!w) { toast('Permite ventanas emergentes', 'error'); return; } w.document.write(legalHtml(d).replace('</body>', '<script>setTimeout(function(){print()},300)<\/script></body>')); w.document.close(); },
+  'legal-word': el => { const d = getRec('legal', el.dataset.id); if (!d) return; download(`${d.titulo.replace(/[\\/:*?"<>|]+/g, '-').slice(0, 80)}.doc`, '﻿' + legalHtml(d), 'application/msword'); },
+  'legal-gen-proj': el => { const t = legalTemplateOf('Contratos con clientes'); if (!t) { toast('No hay plantilla de contrato con clientes. Importa la del sistema anterior o crea una en Legal.', 'error', 5000); return; } const pid = el.dataset.id; openLegalGenerate(t.id); const s = $('#lg_proj'); if (s) { s.value = pid; legalGenFill(); } },
+  'legal-copy': el => { const d = getRec('legal', el.dataset.id); if (!d) return; navigator.clipboard && navigator.clipboard.writeText(d.contenido).then(() => toast('Texto copiado', 'ok')).catch(() => toast('No se pudo copiar', 'error')); }
+});
+
+
 document.addEventListener('click', e => {
   const el = e.target.closest('[data-act]');
   if (!el) return;
@@ -2388,6 +2560,7 @@ document.addEventListener('input', e => {
   if (t.dataset.q) { ui.q[t.dataset.q] = t.value; render(); return; }
   if (t.closest('#itemsRows') || t.id === 'fld_conIVA') updateItemsTotals();
   if (t.dataset.calc) calcQuick();
+  if (t.dataset.ph != null && t.closest('#lgFields')) t.dataset.touched = '1';
   if (t.dataset.expAvance) { const lbl = $('#exp_av_txt'); if (lbl) lbl.textContent = t.value + '%'; }
 });
 document.addEventListener('change', e => {
@@ -2405,6 +2578,7 @@ document.addEventListener('change', e => {
   if (t.dataset.hjv) { hjSetEst(t.dataset.hjv, t.type === 'checkbox' ? t.checked : t.value); return; }
   if (t.dataset.hjTipo) { const p = getRec('hjPedidos', t.dataset.hjTipo); if (p && p.tipo !== t.value) { upsert('hjPedidos', { id:p.id, tipo:t.value, bitacora: hjLog(p, `Tipo: ${hjTipoLabel(p.tipo)} → ${hjTipoLabel(t.value)}`) }, { silent:true }); render(); openHJ(p.id); } return; }
   if (t.dataset.hjPrio) { const p = getRec('hjPedidos', t.dataset.hjPrio); if (p) { upsert('hjPedidos', { id:p.id, prioridad:t.value, bitacora: hjLog(p, `Prioridad: ${t.value}`) }, { silent:true }); render(); openHJ(p.id); } return; }
+  if (t.dataset.lgCtx) { legalGenFill(); return; }
   if (t.dataset.disTarget) { ui.disTarget = t.value; render(); return; }
   if (t.id === 'disFileInput' && t.files.length) { const T = disParseTarget(); if (T) disAttach(T, Array.from(t.files), `Archivo de ${(disTool(ui.disTool) || { name:'diseño' }).name}`); return; }
   if (t.id === 'restoreInput' && t.files[0]) restoreFromFile(t.files[0]);
