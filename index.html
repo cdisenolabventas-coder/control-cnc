@@ -101,7 +101,7 @@
 <body class="antialiased">
 <div id="app" class="min-h-full lg:flex">
   <!-- Barra lateral (computadora/tableta horizontal) -->
-  <aside id="sidebar" class="hidden lg:flex lg:flex-col w-64 shrink-0 bg-slate-900 text-white h-screen sticky top-0 safe-top"></aside>
+  <aside id="sidebar" class="no-print hidden lg:flex lg:flex-col w-64 shrink-0 bg-slate-900 text-white h-screen sticky top-0 safe-top"></aside>
   <div class="flex-1 min-w-0 flex flex-col min-h-screen">
     <header id="topbar" class="sticky top-0 z-40 bg-white/95 backdrop-blur border-b border-slate-200 safe-top no-print"></header>
     <main id="main" class="flex-1 w-full max-w-7xl mx-auto px-3 sm:px-6 py-4 sm:py-6 pb-28 lg:pb-10"></main>
@@ -123,7 +123,7 @@
    Alcance: drive.file (la app solo ve los archivos que ella misma crea)
    ========================================================================= */
 
-const APP_VERSION = '1.0.0';
+const APP_VERSION = '1.1.0';
 const KEYS = { db:'ccmx_db_v1', sync:'ccmx_sync_v1', cfg:'ccmx_cfg_v1', token:'ccmx_token_v1', ui:'ccmx_ui_v1', device:'ccmx_device_v1' };
 const DRIVE = 'https://www.googleapis.com/drive/v3';
 const UPLOAD = 'https://www.googleapis.com/upload/drive/v3';
@@ -133,7 +133,7 @@ const MULTIPART_LIMIT = 5 * 1024 * 1024;        // > 5 MB → subida reanudable
 const TOMBSTONE_TTL = 90 * 24 * 3600 * 1000;     // registros borrados se purgan a los 90 días
 const POLL_MS = 30000;                            // revisión de cambios remotos
 
-const COLLECTIONS = ['proyectos','clientes','cotizaciones','compras','movimientos','avisos','catalogo','bitacora'];
+const COLLECTIONS = ['proyectos','clientes','cotizaciones','compras','movimientos','avisos','catalogo','bitacora','hjPedidos','hjInformes','hjJornadas'];
 const PROCESOS = ['Router CNC','Láser CO₂','Carpintería','Impresión 3D','Herrería','Mixto'];
 const ETAPAS = ['Cotización','Aprobado','Diseño','Producción','Acabado','Listo para entregar','Entregado','Cancelado'];
 const ETAPAS_TALLER = ['Aprobado','Diseño','Producción','Acabado','Listo para entregar'];
@@ -582,6 +582,7 @@ function overdueItems() {
   const t = today(); const out = [];
   list('avisos').forEach(a => { if (!a.completado && isYMD(a.fecha) && a.fecha < t) out.push({ kind:'aviso', id:a.id, title:a.titulo, fecha:a.fecha }); });
   list('proyectos').forEach(p => { if (isActive(p) && p.etapa !== 'Cotización' && isYMD(p.fechaEntrega) && p.fechaEntrega < t) out.push({ kind:'entrega', id:p.id, title:`Entrega: ${p.nombre}`, fecha:p.fechaEntrega }); });
+  list('hjPedidos').forEach(p => { if (!hjDone(p) && isYMD(p.fechaEntrega) && p.fechaEntrega < t) out.push({ kind:'hj', id:p.id, title:`Hebillas JA: ${p.titulo} (${hjPendiente(p)} pend.)`, fecha:p.fechaEntrega }); });
   return out.sort((a, b) => a.fecha.localeCompare(b.fecha));
 }
 function eventsByDate() {
@@ -590,6 +591,7 @@ function eventsByDate() {
   list('avisos').forEach(a => add(a.fecha, { kind:'aviso', id:a.id, title:a.titulo, hora:a.hora, tipo:a.tipo, done:!!a.completado, color: a.completado ? '#94a3b8' : '#2563eb' }));
   list('proyectos').forEach(p => { if (p.etapa !== 'Cancelado') add(p.fechaEntrega, { kind:'entrega', id:p.id, title:`Entrega · ${p.nombre}`, done:p.etapa === 'Entregado', color: p.etapa === 'Entregado' ? '#94a3b8' : '#f97316' }); });
   list('cotizaciones').forEach(c => { if (c.estado === 'Enviada') add(c.vigencia, { kind:'cot', id:c.id, title:`Vence cotización ${c.folio}`, done:false, color:'#7c3aed' }); });
+  list('hjPedidos').forEach(p => { if (p.etapa !== 'Cancelado') add(p.fechaEntrega, { kind:'hj', id:p.id, title:`Hebillas JA · ${p.titulo} (${hjPendiente(p)} pend.)`, done: p.etapa === 'Entregado', color: p.etapa === 'Entregado' ? '#94a3b8' : '#0891b2' }); });
   Object.values(map).forEach(arr => arr.sort((a, b) => String(a.hora || '99').localeCompare(String(b.hora || '99'))));
   return map;
 }
@@ -615,6 +617,7 @@ const NAV = [
   { id:'resumen', label:'Resumen', icon:'layout-dashboard', group:'Operación' },
   { id:'proyectos', label:'Proyectos', icon:'folder-kanban', group:'Operación' },
   { id:'produccion', label:'Producción', icon:'factory', group:'Operación' },
+  { id:'hebillas', label:'Hebillas JA', icon:'award', group:'Operación' },
   { id:'ventas', label:'Ventas', icon:'file-text', group:'Operación' },
   { id:'clientes', label:'Clientes / CRM', icon:'users', group:'Operación' },
   { id:'compras', label:'Compras', icon:'shopping-cart', group:'Operación' },
@@ -777,10 +780,10 @@ function dayPanelHTML() {
     ${e.length ? `<div class="space-y-2">${e.map(x => eventRow(x)).join('')}</div>` : `<div class="text-sm text-slate-400 py-3">Sin compromisos este día.</div>`}</div>`;
 }
 function eventRow(x) {
-  const act = x.kind === 'aviso' ? 'edit-aviso' : x.kind === 'entrega' ? 'open-proyecto' : 'edit-cotizacion';
+  const act = x.kind === 'aviso' ? 'edit-aviso' : x.kind === 'entrega' ? 'open-proyecto' : x.kind === 'hj' ? 'open-hj' : 'edit-cotizacion';
   return `<div class="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2">
     ${x.kind === 'aviso' ? `<button data-act="toggle-aviso" data-id="${x.id}" class="shrink-0 ${x.done ? 'text-green-600' : 'text-slate-300'}" aria-label="Completar">${ic(x.done ? 'circle-check' : 'circle', 'w-5 h-5')}</button>` : `<span class="status-dot" style="background:${x.color}"></span>`}
-    <button data-act="${act}" data-id="${x.id}" class="flex-1 min-w-0 text-left"><div class="text-sm font-medium truncate ${x.done ? 'line-through text-slate-400' : ''}">${esc(x.title)}</div><div class="text-[11px] text-slate-500">${x.hora ? esc(x.hora) + ' · ' : ''}${x.tipo ? esc(x.tipo) : x.kind === 'entrega' ? 'Entrega de proyecto' : 'Cotización'}</div></button></div>`;
+    <button data-act="${act}" data-id="${x.id}" class="flex-1 min-w-0 text-left"><div class="text-sm font-medium truncate ${x.done ? 'line-through text-slate-400' : ''}">${esc(x.title)}</div><div class="text-[11px] text-slate-500">${x.hora ? esc(x.hora) + ' · ' : ''}${x.tipo ? esc(x.tipo) : x.kind === 'entrega' ? 'Entrega de proyecto' : x.kind === 'hj' ? 'Entrega Hebillas JA' : 'Cotización'}</div></button></div>`;
 }
 
 /* ============================== PÁGINAS ============================== */
@@ -823,7 +826,8 @@ PAGES.resumen = () => {
     </div>
     <div class="grid lg:grid-cols-3 gap-5">
       <section class="card"><div class="font-bold mb-3">Taller hoy · carga por proceso</div>
-        <div class="space-y-3">${load.map(([p, n]) => `<button class="w-full text-left" data-act="filter-proceso" data-v="${esc(p)}"><div class="flex justify-between text-sm mb-1"><span>${esc(p)}</span><span class="font-bold">${n}</span></div><div class="bar"><span style="width:${(n / maxLoad) * 100}%"></span></div></button>`).join('')}</div>
+        <div class="space-y-3">${load.map(([p, n]) => `<button class="w-full text-left" data-act="filter-proceso" data-v="${esc(p)}"><div class="flex justify-between text-sm mb-1"><span>${esc(p)}</span><span class="font-bold">${n}</span></div><div class="bar"><span style="width:${(n / maxLoad) * 100}%"></span></div></button>`).join('')}
+        ${(() => { const k = hjKpis(); return `<a href="#/hebillas" class="block rounded-xl bg-cyan-50 border border-cyan-100 px-3 py-2 mt-1"><div class="flex justify-between text-sm"><span class="font-semibold text-cyan-800">Hebillas JA</span><span class="font-bold">${k.activos} pedido(s)</span></div><div class="text-[11px] text-cyan-700">${hjFmtEq(k.porFabricar + k.enFabricacion)} equivalencias pendientes${k.urgentes ? ` · ${k.urgentes} urgente(s)` : ''}</div></a>`; })()}</div>
       </section>
       <section class="card"><div class="font-bold mb-3">Mayores saldos por cobrar</div>
         ${cobrar.length ? `<div class="space-y-2">${cobrar.map(p => `<button data-act="open-proyecto" data-id="${p.id}" class="w-full flex items-center justify-between gap-2 rounded-xl border border-slate-200 px-3 py-2 text-left"><div class="min-w-0"><div class="text-sm font-semibold truncate">${esc(p.nombre)}</div><div class="text-[11px] text-slate-500 truncate">${esc(clientShort(p))}</div></div><div class="text-sm font-bold text-amber-700">${money(projSaldo(p))}</div></button>`).join('')}</div>` : '<div class="text-sm text-slate-400">Todo cobrado.</div>'}
@@ -992,7 +996,7 @@ PAGES.agenda = () => {
   const next = [];
   for (let i = 0; i <= 14; i++) { const d = parseYMD(t); d.setDate(d.getDate() + i); const k = ymd(d); (ev[k] || []).filter(x => !x.done).forEach(x => next.push({ ...x, fecha:k })); }
   return `<div class="space-y-4">
-    ${od.length ? `<div class="card !border-red-200 !bg-red-50"><div class="font-bold text-red-700 flex items-center gap-2 mb-2">${ic('triangle-alert')}${od.length} fuera de plazo</div><div class="space-y-2">${od.map(o => `<div class="flex items-center gap-2 bg-white rounded-xl border border-red-100 px-3 py-2"><button class="flex-1 min-w-0 text-left" data-act="${o.kind === 'aviso' ? 'edit-aviso' : 'open-proyecto'}" data-id="${o.id}"><div class="text-sm font-semibold truncate">${esc(o.title)}</div><div class="text-[11px] text-red-600">${fmtDate(o.fecha)} · hace ${Math.abs(daysFromToday(o.fecha))} día(s)</div></button>${o.kind === 'aviso' ? `<button class="btn btn-sm" data-act="toggle-aviso" data-id="${o.id}">${ic('check')}Completado</button>` : `<button class="btn btn-sm" data-act="open-proyecto" data-id="${o.id}">Atender</button>`}</div>`).join('')}</div></div>` : ''}
+    ${od.length ? `<div class="card !border-red-200 !bg-red-50"><div class="font-bold text-red-700 flex items-center gap-2 mb-2">${ic('triangle-alert')}${od.length} fuera de plazo</div><div class="space-y-2">${od.map(o => `<div class="flex items-center gap-2 bg-white rounded-xl border border-red-100 px-3 py-2"><button class="flex-1 min-w-0 text-left" data-act="${o.kind === 'aviso' ? 'edit-aviso' : o.kind === 'hj' ? 'open-hj' : 'open-proyecto'}" data-id="${o.id}"><div class="text-sm font-semibold truncate">${esc(o.title)}</div><div class="text-[11px] text-red-600">${fmtDate(o.fecha)} · hace ${Math.abs(daysFromToday(o.fecha))} día(s)</div></button>${o.kind === 'aviso' ? `<button class="btn btn-sm" data-act="toggle-aviso" data-id="${o.id}">${ic('check')}Completado</button>` : `<button class="btn btn-sm" data-act="${o.kind === 'hj' ? 'open-hj' : 'open-proyecto'}" data-id="${o.id}">Atender</button>`}</div>`).join('')}</div></div>` : ''}
     <div class="grid lg:grid-cols-3 gap-5">
       <div class="card lg:col-span-2">${calendarHTML({ big:true })}</div>
       <div class="space-y-5">
@@ -1078,7 +1082,7 @@ function openModal(inner, size = 'lg') {
   const first = $('#modalRoot .modal-body input:not([type=hidden]):not([type=checkbox]), #modalRoot .modal-body select, #modalRoot .modal-body textarea');
   if (first && window.matchMedia('(min-width:1024px)').matches) setTimeout(() => first.focus(), 50);
 }
-function closeModal() { $('#modalRoot').innerHTML = ''; document.body.style.overflow = ''; formCtx = null; ui.openExp = null; }
+function closeModal() { $('#modalRoot').innerHTML = ''; document.body.style.overflow = ''; formCtx = null; ui.openExp = null; ui.openHJ = null; }
 const modalHead = (title, sub = '') => `<div class="modal-head"><div class="min-w-0"><div class="font-bold text-lg truncate">${esc(title)}</div>${sub ? `<div class="text-[12px] text-slate-500 truncate">${esc(sub)}</div>` : ''}</div><button class="btn btn-ghost btn-sm" data-act="modal-close" aria-label="Cerrar">${ic('x', 'w-5 h-5')}</button></div>`;
 
 function optionsHTML(options, v) {
@@ -1300,7 +1304,7 @@ async function handleAttachFiles(files) {
     if (prog) { prog.classList.remove('hidden'); prog.textContent = `Subiendo ${i + 1}/${files.length}: ${f.name} (${fmtBytes(f.size)})…`; }
     try {
       Sync.setStatus('saving', 'Subiendo adjunto…');
-      const meta = await Sync.uploadFile(f, { prefix: String(prefix).replace(/[\\/:*?"<>|]/g, '-').slice(0, 60), description: `Adjunto de ${col}: ${rec.nombre || rec.concepto || rec.proveedor || id}` });
+      const meta = await Sync.uploadFile(f, { prefix: String(prefix).replace(/[\\/:*?"<>|]/g, '-').slice(0, 60), description: `Adjunto de ${col}: ${rec.nombre || rec.titulo || rec.concepto || rec.proveedor || id}` });
       const cur = getRec(col, id);
       upsert(col, { id, adjuntos: [ ...((cur && cur.adjuntos) || []), meta ] }, { silent:true });
       ok++;
@@ -1313,6 +1317,7 @@ function reopenAfterAttach(col, id) {
   if (col === 'proyectos') openExpediente(id);
   else if (col === 'compras') openCompraForm(id);
   else if (col === 'movimientos') openMovForm(id);
+  else if (col === 'hjPedidos') openHJ(id);
 }
 
 /* ---- Clientes ---- */
@@ -1784,6 +1789,427 @@ const H = {
   'install': async () => { if (!deferredInstall) return; deferredInstall.prompt(); await deferredInstall.userChoice; deferredInstall = null; render(); }
 };
 
+/* =====================================================================
+   HEBILLAS JA · producción recurrente
+   Pedidos con 9 etapas, entregas parciales con recibo, equivalencias,
+   estimación por lote, productividad diaria e informes cada 800 equiv.
+   ===================================================================== */
+const HJ_TIPOS = [
+  { v:'chica', l:'Caja chica', eq:1 }, { v:'mediana', l:'Caja mediana', eq:1.5 }, { v:'grande', l:'Caja grande', eq:2 },
+  { v:'trofeo', l:'Caja trofeo', eq:4 }, { v:'tapa', l:'Tapa de reposición', eq:0.5 }
+];
+const HJ_EQ = Object.fromEntries(HJ_TIPOS.map(t => [t.v, t.eq]));
+const hjTipoLabel = v => (HJ_TIPOS.find(t => t.v === v) || { l: v || '—' }).l;
+const HJ_ETAPAS = ['Solicitud recibida', 'Diseño enviado', 'Diseño aprobado', 'Cortado', 'Grabado', 'Espuma lista', 'Empacado', 'Entrega parcial', 'Entregado'];
+const HJ_CONF = ['Firma física en el recibo', 'Aceptación digital'];
+const HJ_BASES = [
+  { v:'chica', l:'Cajas chicas' }, { v:'mediana', l:'Cajas medianas' }, { v:'grande', l:'Cajas grandes' }, { v:'trofeo', l:'Cajas trofeo' },
+  { v:'cajas', l:'Todas las cajas' }, { v:'tapas', l:'Tapas (cajas + reposición)' }, { v:'tapaFrente', l:'Tapas con grabado frontal' }, { v:'tapaInterior', l:'Tapas con grabado interior' }
+];
+const HJ_OPS_DEFAULT = [
+  ['cortar-chicas', 'Cortar cajas chicas', 'chica', 22, 16, 'maquina'],
+  ['cortar-medianas', 'Cortar cajas medianas', 'mediana', 22, 10, 'maquina'],
+  ['cortar-grandes', 'Cortar cajas grandes', 'grande', 18, 10, 'maquina'],
+  ['cortar-trofeo', 'Cortar cajas trofeo', 'trofeo', 18, 6, 'maquina'],
+  ['cortar-tapas', 'Cortar tapas', 'tapas', 9, 48, 'maquina'],
+  ['grabar-frente', 'Grabar tapas por el frente', 'tapaFrente', 330, 48, 'maquina'],
+  ['grabar-interior', 'Grabar tapas por el interior', 'tapaInterior', 90, 35, 'maquina'],
+  ['lijar-tapas', 'Lijar tapas', 'tapas', 90, 100, 'humano'],
+  ['armar-cajas', 'Armar cajas', 'cajas', 60, 50, 'humano'],
+  ['cortar-espumas', 'Cortar espumas', 'cajas', 18, 58, 'maquina'],
+  ['armar-espumas', 'Armar espumas', 'cajas', 60, 150, 'humano'],
+  ['pintar-espumas', 'Pintar espumas', 'cajas', 15, 65, 'humano']
+].map(([id, nombre, base, min, pzs, tipo]) => ({ id, nombre, base, min, pzs, tipo }));
+function hjDefaultSettings() {
+  return { telefono:'', contacto:'Araceli', meta:800,
+    est: { vol:{ chica:800, mediana:0, grande:0, trofeo:0, tapa:0, tapaFrente:0, tapaInterior:0 },
+      jornada:{ entrada:'09:00', salida:'01:30', comida:30, descansos:120, prep:30, compu:120, objetivo:10, imprevistos:15, solapar:true },
+      ops: HJ_OPS_DEFAULT.map(o => ({ ...o })) } };
+}
+function hjNormalizeSettings(s) {
+  const d = hjDefaultSettings(); const h = (s && s.hj) || {};
+  const est = h.est || {};
+  return { ...d, ...h, est: { vol: { ...d.est.vol, ...(est.vol || {}) }, jornada: { ...d.est.jornada, ...(est.jornada || {}) }, ops: Array.isArray(est.ops) && est.ops.length ? est.ops : d.est.ops } };
+}
+const hjS = () => hjNormalizeSettings(db.settings);
+const hjEq = p => num(p.cantidad) * (HJ_EQ[p.tipo] ?? 1);
+const hjEntregado = p => (p.entregas || []).reduce((s, e) => s + num(e.cant), 0);
+const hjPendiente = p => Math.max(0, num(p.cantidad) - hjEntregado(p));
+const hjDone = p => p.etapa === 'Entregado' || p.etapa === 'Cancelado';
+const hjStepIdx = p => Math.max(0, HJ_ETAPAS.indexOf(p.etapa));
+const hjFmtEq = n => (Math.round(num(n) * 10) / 10).toLocaleString('es-MX');
+function hjNewFolio() {
+  const d = new Date(); let f;
+  do { f = `JA-${String(d.getFullYear()).slice(2)}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${Math.floor(Math.random() * 65536).toString(16).toUpperCase().padStart(4, '0')}`; }
+  while (list('hjPedidos').some(p => p.folio === f));
+  return f;
+}
+const hjLog = (p, texto) => [...(p.bitacora || []), { texto, at: Date.now(), device: deviceLabel() }];
+
+function hjKpis() {
+  const ps = list('hjPedidos').filter(p => p.etapa !== 'Cancelado');
+  const act = ps.filter(p => !hjDone(p));
+  const pendEq = p => hjPendiente(p) * (HJ_EQ[p.tipo] ?? 1);
+  return {
+    revisar: ps.filter(p => p.etapa === 'Solicitud recibida').length,
+    urgentes: act.filter(p => p.prioridad === 'Urgente').length,
+    total: ps.reduce((s, p) => s + hjEq(p), 0),
+    entregadas: ps.reduce((s, p) => s + hjEntregado(p) * (HJ_EQ[p.tipo] ?? 1), 0),
+    porFabricar: act.filter(p => hjStepIdx(p) < 3).reduce((s, p) => s + pendEq(p), 0),
+    enFabricacion: act.filter(p => hjStepIdx(p) >= 3).reduce((s, p) => s + pendEq(p), 0),
+    activos: act.length
+  };
+}
+
+/* ---- Informes de 800 equivalencias (saldo excedente pasa al siguiente) ---- */
+function hjInformesCalc() {
+  const meta = num(hjS().meta) || 800;
+  const peds = list('hjPedidos').filter(p => p.etapa !== 'Cancelado').sort((a, b) => String(a.creado || '').localeCompare(String(b.creado || '')) || String(a.folio).localeCompare(String(b.folio)));
+  const closed = list('hjInformes').sort((a, b) => num(a.num) - num(b.num));
+  const assigned = new Set(closed.flatMap(i => i.folios || []));
+  let saldo = 0; const out = [];
+  closed.forEach(i => {
+    const ps = (i.folios || []).map(f => peds.find(p => p.folio === f)).filter(Boolean);
+    const eq = ps.reduce((s, p) => s + hjEq(p), 0);
+    const total = saldo + eq;
+    const exc = Math.max(0, total - meta);
+    out.push({ rec: i, num: num(i.num), ps, eq, pz: ps.reduce((s, p) => s + num(p.cantidad), 0), saldo, total, exc, cerrado: true });
+    saldo = exc;
+  });
+  const open = peds.filter(p => !assigned.has(p.folio));
+  const eq = open.reduce((s, p) => s + hjEq(p), 0);
+  out.push({ rec: null, num: (closed.length ? num(closed[closed.length - 1].num) : 0) + 1, ps: open, eq, pz: open.reduce((s, p) => s + num(p.cantidad), 0), saldo, total: saldo + eq, exc: Math.max(0, saldo + eq - meta), cerrado: false, meta });
+  return out;
+}
+function hjCerrarInforme() {
+  const inf = hjInformesCalc(); const cur = inf[inf.length - 1]; const meta = num(hjS().meta) || 800;
+  if (cur.total < meta) { toast(`Faltan ${hjFmtEq(meta - cur.total)} equivalencias para cerrar el informe`, 'error'); return; }
+  const folios = []; let acc = cur.saldo;
+  for (const p of cur.ps) { folios.push(p.folio); acc += hjEq(p); if (acc >= meta) break; }
+  if (!confirm(`¿Cerrar el informe ${String(cur.num).padStart(3, '0')} con ${folios.length} pedido(s) y ${hjFmtEq(acc)} equivalencias (incluye saldo)?`)) return;
+  upsert('hjInformes', { num: cur.num, folios, factura: '', pagada: false, cerradoEn: today() });
+  toast('Informe cerrado', 'ok');
+}
+
+/* ---- Estimación por lote ---- */
+function hjRealRate(opId) {
+  let min = 0, pz = 0, n = 0;
+  list('hjJornadas').forEach(j => (j.bloques || []).forEach(b => { if (b.opId === opId && num(b.piezas) > 0) { min += num(b.minutos); pz += num(b.piezas); n++; } }));
+  return n ? { n, minPorPieza: min / pz } : null;
+}
+const hhmmToMin = s => { const [h, m] = String(s || '0:0').split(':').map(Number); return (h || 0) * 60 + (m || 0); };
+function hjEstimate() {
+  const e = hjS().est; const v = e.vol;
+  const cajas = num(v.chica) + num(v.mediana) + num(v.grande) + num(v.trofeo);
+  const q = { chica: num(v.chica), mediana: num(v.mediana), grande: num(v.grande), trofeo: num(v.trofeo), cajas, tapas: cajas + num(v.tapa), tapaFrente: num(v.tapaFrente), tapaInterior: num(v.tapaInterior) };
+  const rows = e.ops.map(o => { const qty = num(q[o.base]); const lotes = qty && num(o.pzs) > 0 ? Math.ceil(qty / num(o.pzs)) : 0; return { ...o, qty, lotes, minTot: lotes * num(o.min), real: hjRealRate(o.id) }; });
+  const maq = rows.filter(r => r.tipo === 'maquina').reduce((s, r) => s + r.minTot, 0) / 60;
+  const hum = rows.filter(r => r.tipo === 'humano').reduce((s, r) => s + r.minTot, 0) / 60;
+  const j = e.jornada;
+  let turno = hhmmToMin(j.salida) - hhmmToMin(j.entrada); if (turno <= 0) turno += 1440;
+  const efectiva = Math.max(0, turno - num(j.comida) - num(j.descansos)) / 60;
+  const usada = Math.min(num(j.objetivo) || efectiva, efectiva);
+  const diaria = Math.max(0.5, usada - (num(j.prep) + num(j.compu)) / 60);
+  const base = j.solapar ? Math.max(maq, hum) : maq + hum;
+  const total = base * (1 + num(j.imprevistos) / 100);
+  const dias = total > 0 ? Math.ceil(total / diaria) : 0;
+  return { q, cajas, rows, maq, hum, efectiva, usada, diaria, base, total, dias, ultimo: dias ? total - (dias - 1) * diaria : 0, holgura: efectiva - usada };
+}
+function hjSetEst(path, value) {
+  const s = JSON.parse(JSON.stringify(hjS()));
+  const [a, b, c] = path.split('.');
+  if (a === 'ops') { s.est.ops[+b][c] = ['min', 'pzs'].includes(c) ? num(value) : value; }
+  else if (a === 'vol') s.est.vol[b] = Math.max(0, num(value));
+  else if (a === 'jornada') s.est.jornada[b] = b === 'solapar' ? !!value : (['entrada', 'salida'].includes(b) ? value : num(value));
+  else s[a] = value;
+  updateSettings({ hj: s });
+}
+
+/* ---- Página ---- */
+PAGES.hebillas = () => {
+  const tab = ui.hjTab || 'pedidos';
+  const tabs = [['pedidos', 'Pedidos', 'package'], ['estimacion', 'Estimación por lote', 'calculator'], ['productividad', 'Productividad diaria', 'timer'], ['informes', 'Informes cada ' + (num(hjS().meta) || 800), 'file-check']];
+  return `<div class="space-y-4">
+    <div class="flex items-end justify-between gap-3 flex-wrap"><div><div class="text-[11px] font-bold tracking-widest text-brand-600">PRODUCCIÓN RECURRENTE</div><h1 class="text-2xl font-extrabold">Hebillas JA</h1><p class="text-sm text-slate-500">Pedidos, aprobaciones, producción, entregas e informes.</p></div>
+      <div class="flex gap-2 flex-wrap"><button class="btn" data-act="hj-config">${ic('settings')}Contacto</button><button class="btn btn-primary" data-act="hj-new">${ic('plus')}Nueva solicitud</button></div></div>
+    <div class="scroll-x"><div class="flex gap-2 min-w-max">${tabs.map(([id, l, i]) => `<button class="btn btn-sm ${tab === id ? 'btn-dark' : ''}" data-act="hj-tab" data-v="${id}">${ic(i)}${l}</button>`).join('')}</div></div>
+    ${tab === 'pedidos' ? hjPedidosView() : tab === 'estimacion' ? hjEstimacionView() : tab === 'productividad' ? hjProductividadView() : hjInformesView()}
+  </div>`;
+};
+function hjStepsMini(p) {
+  const i = hjStepIdx(p);
+  return `<div class="flex gap-0.5 mt-1">${['Cortado', 'Grabado', 'Espuma lista', 'Empacado'].map(s => `<span class="h-1.5 flex-1 rounded" style="background:${HJ_ETAPAS.indexOf(s) <= i && p.etapa !== 'Solicitud recibida' ? '#16a34a' : '#e2e8f0'}" title="${s}"></span>`).join('')}</div>`;
+}
+const hjEtapaColor = e => ({ 'Solicitud recibida':'#64748b', 'Diseño enviado':'#7c3aed', 'Diseño aprobado':'#2563eb', 'Cortado':'#ea580c', 'Grabado':'#ea580c', 'Espuma lista':'#d97706', 'Empacado':'#0891b2', 'Entrega parcial':'#0d9488', 'Entregado':'#15803d', 'Cancelado':'#b91c1c' }[e] || '#64748b');
+function hjPedidosView() {
+  const k = hjKpis();
+  const orden = ui.f.hjOrden || 'pend';
+  const ps = list('hjPedidos').filter(p => (!ui.f.hjEtapa || (ui.f.hjEtapa === 'Activos' ? !hjDone(p) : p.etapa === ui.f.hjEtapa)) && matchQ('hj', p.folio, p.titulo, p.lugar || '', p.solicito || ''))
+    .sort((a, b) => orden === 'pend' ? ((hjDone(a) - hjDone(b)) || String(a.fechaEntrega || '9').localeCompare(String(b.fechaEntrega || '9')) * (hjDone(a) ? -1 : 1)) : String(b.creado || '').localeCompare(String(a.creado || '')) || String(b.folio).localeCompare(String(a.folio)));
+  return `<div class="grid grid-cols-2 lg:grid-cols-6 gap-3">
+      ${kpiCard('Solicitudes por revisar', k.revisar, 'Pedidos', 'inbox', '#64748b')}
+      ${kpiCard('Pedidos urgentes', k.urgentes, 'Activos', 'siren', '#dc2626')}
+      ${kpiCard('Total registrado', hjFmtEq(k.total), 'Equivalencias', 'sigma', '#2563eb')}
+      ${kpiCard('Piezas entregadas', hjFmtEq(k.entregadas), 'Equivalencias', 'package-check', '#16a34a')}
+      ${kpiCard('Por fabricar', hjFmtEq(k.porFabricar), 'Equiv. sin iniciar', 'clock', '#7c3aed')}
+      ${kpiCard('En fabricación / por entregar', hjFmtEq(k.enFabricacion), 'Equivalencias', 'factory', '#ea580c')}
+    </div>
+    <div class="flex flex-wrap gap-2 items-center">${searchBox('hj', 'Buscar folio, evento, lugar o quién solicitó…')}
+      <select data-f="hjEtapa" id="f_hjEtapa" class="inp !w-auto"><option value="">Etapa: todas</option><option ${ui.f.hjEtapa === 'Activos' ? 'selected' : ''}>Activos</option>${[...HJ_ETAPAS, 'Cancelado'].map(e => `<option ${ui.f.hjEtapa === e ? 'selected' : ''}>${e}</option>`).join('')}</select>
+      <select data-f="hjOrden" id="f_hjOrden" class="inp !w-auto"><option value="pend" ${orden === 'pend' ? 'selected' : ''}>Organizar: no entregados primero</option><option value="folio" ${orden === 'folio' ? 'selected' : ''}>Más recientes primero</option></select></div>
+    <div class="card !p-0 overflow-hidden">${ps.length ? `
+      <div class="hidden md:block scroll-x"><table class="tbl"><thead><tr><th>Folio</th><th>Evento</th><th>Entrega</th><th>Tipo</th><th class="text-right">Cantidad</th><th>Entregado / pendiente</th><th>Prioridad</th><th style="min-width:150px">Estado</th></tr></thead><tbody>
+      ${ps.map(p => { const late = !hjDone(p) && isYMD(p.fechaEntrega) && p.fechaEntrega < today(); return `<tr class="row-link" data-act="open-hj" data-id="${p.id}">
+        <td class="whitespace-nowrap font-semibold text-brand-700">${esc(p.folio)}${(p.adjuntos || []).length ? ' 📎' : ''}</td>
+        <td class="max-w-[220px]"><div class="font-semibold truncate">${esc(p.titulo)}</div><div class="text-[11px] text-slate-500 truncate">${esc([p.lugar, p.solicito].filter(Boolean).join(' · '))}</div></td>
+        <td class="whitespace-nowrap text-sm ${late ? 'text-red-600 font-bold' : ''}">${fmtDateShort(p.fechaEntrega)}</td>
+        <td class="text-sm">${esc(hjTipoLabel(p.tipo))}</td>
+        <td class="text-right font-semibold">${num(p.cantidad).toLocaleString('es-MX')}</td>
+        <td class="text-sm whitespace-nowrap">${hjEntregado(p).toLocaleString('es-MX')} / <b class="${hjPendiente(p) ? 'text-amber-700' : 'text-slate-400'}">${hjPendiente(p).toLocaleString('es-MX')}</b></td>
+        <td>${p.prioridad === 'Urgente' ? badge('Urgente', '#dc2626') : badge('Normal', '#64748b')}</td>
+        <td>${badge(p.etapa, hjEtapaColor(p.etapa))}${hjStepsMini(p)}</td></tr>`; }).join('')}</tbody></table></div>
+      <div class="md:hidden divide-y divide-slate-100">${ps.map(p => `<button class="w-full text-left px-4 py-3" data-act="open-hj" data-id="${p.id}"><div class="flex justify-between gap-2"><div class="min-w-0"><div class="font-semibold truncate">${esc(p.titulo)}</div><div class="text-[11px] text-slate-500">${esc(p.folio)} · ${esc(hjTipoLabel(p.tipo))}${p.lugar ? ' · ' + esc(p.lugar) : ''}</div></div><div class="text-right shrink-0"><div class="font-bold">${hjEntregado(p)}/${num(p.cantidad)}</div><div class="text-[11px] text-slate-500">${fmtDateShort(p.fechaEntrega)}</div></div></div><div class="flex items-center gap-2 mt-2">${badge(p.etapa, hjEtapaColor(p.etapa))}${p.prioridad === 'Urgente' ? badge('Urgente', '#dc2626') : ''}</div>${hjStepsMini(p)}</button>`).join('')}</div>`
+      : emptyState('Sin pedidos de Hebillas JA.', `<button class="btn btn-primary btn-sm" data-act="hj-new">${ic('plus')}Nueva solicitud</button>`)}</div>`;
+}
+
+function hjEstimacionView() {
+  const r = hjEstimate(); const e = hjS().est; const j = e.jornada;
+  const volF = [['chica', 'Cajas chicas'], ['mediana', 'Cajas medianas'], ['grande', 'Cajas grandes'], ['trofeo', 'Cajas trofeo'], ['tapa', 'Tapas de reposición'], ['tapaFrente', 'Tapas con grabado frontal'], ['tapaInterior', 'Tapas con grabado interior']];
+  const jorF = [['entrada', 'Entrada', 'time'], ['salida', 'Salida', 'time'], ['comida', 'Comida (min)'], ['descansos', 'Descansos (min)'], ['prep', 'Preparación / limpieza (min)'], ['compu', 'Computadora / diseño diario (min)'], ['objetivo', 'Horas objetivo por día'], ['imprevistos', 'Margen de imprevistos (%)']];
+  const h = n => n >= 1 ? (Math.round(n * 10) / 10) + ' h' : Math.round(n * 60) + ' min';
+  return `<div class="text-sm text-slate-500">Captura la mezcla del pedido, activa solo los grabados que pida el cliente y ajusta los minutos por lote. Lo que registres en <b>Productividad diaria</b> aparece como referencia real para reemplazar los valores iniciales.</div>
+  <div class="grid lg:grid-cols-3 gap-5">
+    <div class="card"><div class="font-bold mb-3">1 · Volumen del lote</div><div class="grid grid-cols-2 gap-2">${volF.map(([k, l]) => `<label class="block"><span class="lbl">${l}</span><input class="inp" type="number" min="0" inputmode="numeric" data-hjv="vol.${k}" value="${num(e.vol[k])}"></label>`).join('')}</div>
+      <div class="mt-3 text-sm">Total de cajas: <b>${r.cajas}</b> · Tapas a cortar/lijar: <b>${r.q.tapas}</b></div></div>
+    <div class="card"><div class="font-bold mb-3">2 · Jornada</div><div class="grid grid-cols-2 gap-2">${jorF.map(([k, l, t]) => `<label class="block"><span class="lbl">${l}</span><input class="inp" type="${t || 'number'}" ${t ? '' : 'step="any" inputmode="decimal"'} data-hjv="jornada.${k}" value="${esc(j[k])}"></label>`).join('')}</div>
+      <label class="flex items-center gap-2 mt-3 text-sm"><input type="checkbox" class="w-5 h-5 accent-orange-500" data-hjv="jornada.solapar" ${j.solapar ? 'checked' : ''}>Permitir solapamiento (máquina trabaja mientras se lija/arma)</label></div>
+    <div class="card !bg-slate-900 !border-slate-900 text-white"><div class="font-bold mb-3">Resultado del lote</div>
+      <div class="space-y-2 text-sm">${[['Tiempo de máquina', h(r.maq)], ['Tiempo manual', h(r.hum)], ['Base ' + (j.solapar ? '(con solapamiento)' : '(secuencial)'), h(r.base)], ['Total con imprevistos', h(r.total)], ['Capacidad efectiva del turno', h(r.efectiva)], ['Horas de producción por día', h(r.diaria)], ['Holgura diaria del turno', h(Math.max(0, r.holgura))]].map(([l, v]) => `<div class="flex justify-between border-b border-white/10 pb-1"><span class="text-slate-300">${l}</span><b>${v}</b></div>`).join('')}</div>
+      <div class="mt-4 text-3xl font-extrabold text-brand-400">${r.dias} día(s)</div><div class="text-sm text-slate-300">Último día: ${h(r.ultimo)}. Usa este resultado para prometer fechas con margen y reservar tus horas de computadora.</div>
+      <button class="btn btn-sm mt-3" data-act="print">${ic('printer')}Imprimir / PDF</button></div>
+  </div>
+  <div class="card !p-0 overflow-hidden"><div class="px-4 py-3 border-b border-slate-100 flex justify-between items-center gap-2 flex-wrap"><div class="font-bold">3 · Procesos y tiempos</div><button class="btn btn-sm" data-act="hj-ops-reset">${ic('rotate-ccw')}Restaurar valores iniciales</button></div>
+    <div class="scroll-x"><table class="tbl"><thead><tr><th>Proceso</th><th>Aplica a</th><th class="text-right">Cantidad</th><th>Min / lote</th><th>Piezas / lote</th><th>Tipo</th><th class="text-right">Total</th><th>Referencia real</th></tr></thead><tbody>
+    ${r.rows.map((o, i) => `<tr><td class="font-medium min-w-[170px]"><input class="inp !min-h-[36px] !py-1" data-hjv="ops.${i}.nombre" value="${esc(o.nombre)}"></td>
+      <td><select class="inp !min-h-[36px] !py-1 !w-auto" data-hjv="ops.${i}.base">${optionsHTML(HJ_BASES.map(b => ({ v:b.v, l:b.l })), o.base)}</select></td>
+      <td class="text-right">${o.qty}</td>
+      <td><input class="inp !min-h-[36px] !py-1 !w-20" type="number" step="any" data-hjv="ops.${i}.min" value="${num(o.min)}"></td>
+      <td><input class="inp !min-h-[36px] !py-1 !w-20" type="number" step="any" data-hjv="ops.${i}.pzs" value="${num(o.pzs)}"></td>
+      <td><select class="inp !min-h-[36px] !py-1 !w-auto" data-hjv="ops.${i}.tipo">${optionsHTML([{ v:'maquina', l:'Máquina' }, { v:'humano', l:'Manual' }], o.tipo)}</select></td>
+      <td class="text-right whitespace-nowrap text-sm">${o.minTot ? h(o.minTot / 60) + ' · ' + o.lotes + ' lotes' : '—'}</td>
+      <td class="text-sm whitespace-nowrap">${o.real ? `<button class="btn btn-sm" data-act="hj-use-real" data-i="${i}" title="Reemplazar con el promedio real">${Math.round(o.real.minPorPieza * num(o.pzs) * 10) / 10} min · ${o.real.n} reg. · usar</button>` : '<span class="text-slate-400">Sin registro real</span>'}</td></tr>`).join('')}
+    </tbody></table></div></div>`;
+}
+
+function hjProductividadView() {
+  const per = ui.hjPer || 'semana';
+  const t = today(); const start = parseYMD(t);
+  if (per === 'semana') start.setDate(start.getDate() - ((start.getDay() + 6) % 7)); else if (per === 'mes') start.setDate(1);
+  const from = ymd(start);
+  const js = list('hjJornadas').sort((a, b) => String(b.fecha).localeCompare(String(a.fecha)));
+  const inP = js.filter(j => j.fecha >= from && j.fecha <= t);
+  const pres = j => { let m = hhmmToMin(j.salida) - hhmmToMin(j.entrada); if (m <= 0) m += 1440; return Math.max(0, m - num(j.comida) - num(j.descansos)) / 60; };
+  const prod = j => (j.bloques || []).reduce((s, b) => s + num(b.minutos), 0) / 60;
+  const P = inP.reduce((s, j) => s + pres(j), 0), W = inP.reduce((s, j) => s + prod(j), 0);
+  const byOp = {};
+  inP.forEach(j => (j.bloques || []).forEach(b => { const k = b.opId; byOp[k] = byOp[k] || { pz: 0, min: 0 }; byOp[k].pz += num(b.piezas); byOp[k].min += num(b.minutos); }));
+  const opName = id => (hjS().est.ops.find(o => o.id === id) || { nombre: id || 'Otro' }).nombre;
+  const ops = Object.entries(byOp).sort((a, b) => b[1].min - a[1].min);
+  return `<div class="flex flex-wrap gap-2 items-center justify-between"><div class="text-sm text-slate-500">Registra bloques reales de trabajo para detectar cuellos de botella y días flojos.</div><div class="flex gap-2">${['dia', 'semana', 'mes'].map(x => `<button class="btn btn-sm ${per === x ? 'btn-dark' : ''}" data-act="hj-per" data-v="${x}">${{ dia:'Día', semana:'Semana', mes:'Mes' }[x]}</button>`).join('')}<button class="btn btn-primary btn-sm" data-act="hj-jornada">${ic('plus')}Registrar jornada</button></div></div>
+  <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+    ${kpiCard('Jornadas', inP.length, 'En el periodo', 'calendar-days', '#2563eb')}
+    ${kpiCard('Horas presentes', (Math.round(P * 10) / 10) + ' h', 'Sin comida ni descansos', 'clock', '#64748b')}
+    ${kpiCard('Horas productivas', (Math.round(W * 10) / 10) + ' h', 'Bloques registrados', 'hammer', '#ea580c')}
+    ${kpiCard('Aprovechamiento', P ? Math.round(W / P * 100) + '%' : '—', P && W / P < 0.6 ? 'Revisa tiempos muertos' : 'Productivas / presentes', 'gauge', P && W / P < 0.6 ? '#dc2626' : '#16a34a')}
+  </div>
+  <div class="grid lg:grid-cols-3 gap-5">
+    <div class="card"><div class="font-bold mb-2">Tiempo por proceso</div>${ops.length ? `<div class="space-y-2">${ops.map(([id, v], i) => `<div><div class="flex justify-between text-sm"><span>${i === 0 ? '⚠️ ' : ''}${esc(opName(id))}</span><b>${Math.round(v.min / 6) / 10} h</b></div><div class="text-[11px] text-slate-500">${v.pz} piezas · ${v.pz ? (Math.round(v.min / v.pz * 100) / 100) : 0} min/pieza</div></div>`).join('')}</div><div class="text-[11px] text-slate-500 mt-2">⚠️ = proceso que más horas consume en el periodo (posible cuello de botella).</div>` : '<div class="text-sm text-slate-400">Sin bloques registrados.</div>'}</div>
+    <div class="card lg:col-span-2 !p-0 overflow-hidden"><div class="px-4 py-3 border-b border-slate-100 font-bold">Últimas 30 jornadas</div>${js.length ? `<div class="divide-y divide-slate-100">${js.slice(0, 30).map(j => `<button class="w-full text-left px-4 py-3 flex justify-between gap-2" data-act="hj-jornada" data-id="${j.id}"><div><div class="font-semibold text-sm">${fmtDate(j.fecha)} · ${esc(j.operador || '')}</div><div class="text-[11px] text-slate-500">${esc(j.entrada)}–${esc(j.salida)} · ${(j.bloques || []).length} bloque(s)${j.notas ? ' · ' + esc(j.notas.slice(0, 60)) : ''}</div></div><div class="text-right text-sm"><b>${Math.round(prod(j) * 10) / 10} h</b><div class="text-[11px] text-slate-500">de ${Math.round(pres(j) * 10) / 10} h</div></div></button>`).join('')}</div>` : emptyState('Aún no registras jornadas.')}</div>
+  </div>`;
+}
+
+function hjInformesView() {
+  const inf = hjInformesCalc().reverse(); const meta = num(hjS().meta) || 800;
+  return `<div class="text-sm text-slate-500">Cada informe agrupa ${meta} equivalencias con pedidos completos, en orden de solicitud. Si un pedido rebasa la meta, el excedente pasa como saldo al siguiente informe.<br>Equivalencias: ${HJ_TIPOS.map(t => `${t.l.replace('Caja ', '').replace(' de reposición', '')} × ${t.eq}`).join(' · ')}</div>
+  <div class="space-y-3">${inf.map(i => `<div class="card ${i.cerrado ? '' : '!border-brand-300 !bg-brand-50'}">
+    <div class="flex justify-between items-start gap-2 flex-wrap"><div><div class="text-[11px] font-bold tracking-widest ${i.cerrado ? 'text-slate-500' : 'text-brand-700'}">INFORME ${String(i.num).padStart(3, '0')}</div><div class="font-bold">${i.cerrado ? 'Informe cerrado' + (i.rec.cerradoEn ? ' · ' + fmtDate(i.rec.cerradoEn) : '') : 'En curso'}</div></div>
+      <div class="flex gap-2 flex-wrap">${i.ps.length ? `<button class="btn btn-sm" data-act="hj-inf-print" data-n="${i.num}">${ic('printer')}Ver lista / imprimir</button>` : ''}${i.cerrado ? `<button class="btn btn-sm" data-act="hj-inf-edit" data-id="${i.rec.id}">${ic('receipt')}Factura</button>` : `<button class="btn btn-sm btn-primary" data-act="hj-inf-close" ${i.total < meta ? 'disabled' : ''}>${ic('lock')}Cerrar informe</button>`}</div></div>
+    <div class="grid grid-cols-2 sm:grid-cols-5 gap-2 mt-3 text-sm">${[['Pedidos', i.ps.length], ['Piezas reales', i.pz.toLocaleString('es-MX')], ['Equiv. del informe', hjFmtEq(i.eq)], ['Saldo aplicado', hjFmtEq(i.saldo)], ['Total con saldo', hjFmtEq(i.total)]].map(([l, v]) => `<div class="rounded-xl bg-white/70 border border-slate-200 p-2"><div class="text-[11px] text-slate-500">${l}</div><div class="font-bold">${v}</div></div>`).join('')}</div>
+    ${!i.cerrado ? `<div class="mt-3">${bar(Math.min(100, i.total / meta * 100))}<div class="text-[12px] mt-1 text-slate-600">${i.total >= meta ? `Listo para cerrar · excedente estimado ${hjFmtEq(i.total - meta)}` : `Faltan ${hjFmtEq(meta - i.total)} equivalencias`}</div></div>` : `<div class="mt-2 text-[12px] text-slate-600">Excedente para el siguiente informe: <b>${hjFmtEq(i.exc)}</b> equivalencias · ${i.rec.factura ? `Factura: <b>${esc(i.rec.factura)}</b> ${i.rec.pagada ? badge('Pagada', '#15803d') : badge('Por cobrar', '#d97706')}` : badge('Factura pendiente de registrar', '#d97706')}</div>`}
+  </div>`).join('')}</div>`;
+}
+
+/* ---- Formularios y expediente del pedido ---- */
+const HJ_FIELDS = [
+  { k:'titulo', label:'Evento / nombre del pedido', req:true, full:true, ph:'Ej. Normales JA Jalisco, Expo Ganadera…' },
+  { k:'lugar', label:'Lugar / estado', ph:'Jalisco, Utah, Brasil…' }, { k:'solicito', label:'Solicitó', ph:'Araceli' },
+  { k:'tipo', label:'Tipo / tamaño', type:'select', options: HJ_TIPOS.map(t => ({ v:t.v, l:`${t.l} (× ${t.eq})` })), def:'chica' },
+  { k:'cantidad', label:'Cantidad (cajas)', type:'number', req:true, min:1 },
+  { k:'fechaEntrega', label:'Fecha de entrega', type:'date' },
+  { k:'prioridad', label:'Prioridad', type:'select', options:['Normal', 'Urgente'], def:'Normal' },
+  { k:'notas', label:'Notas (grabados, especiales, empaque…)', type:'textarea' }
+];
+function openHJForm(id) {
+  const p = id ? getRec('hjPedidos', id) : null;
+  openForm({ title: p ? 'Editar pedido' : 'Nueva solicitud Hebillas JA', sub: p ? p.folio : 'Folio JA automático', fields: p ? HJ_FIELDS.filter(f => !['tipo', 'cantidad'].includes(f.k)) : HJ_FIELDS,
+    data: p || { tipo:'chica', prioridad:'Normal', solicito: hjS().contacto || '' }, back: p ? () => openHJ(p.id) : null,
+    onSave: v => {
+      if (!p && num(v.cantidad) <= 0) { toast('La cantidad debe ser mayor a cero', 'error'); return false; }
+      if (p) { upsert('hjPedidos', { id:p.id, ...v, bitacora: hjLog(p, 'Datos del pedido actualizados') }, { silent:true }); render(); openHJ(p.id); return; }
+      const nid = upsert('hjPedidos', { ...v, folio: hjNewFolio(), creado: today(), etapa:'Solicitud recibida', entregas:[], adjuntos:[], bitacora:[{ texto:`Solicitud registrada: ${num(v.cantidad)} × ${hjTipoLabel(v.tipo)}`, at:Date.now(), device:deviceLabel() }] }, { silent:true });
+      render(); toast('Pedido creado', 'ok'); openHJ(nid);
+    } });
+}
+function openHJ(id) {
+  const p = getRec('hjPedidos', id); if (!p) { closeModal(); return; }
+  const idx = hjStepIdx(p); const ent = hjEntregado(p), pend = hjPendiente(p);
+  formCtx = null;
+  openModal(`${modalHead(p.titulo, `${p.folio} · Solicitó: ${p.solicito || '—'} · ${num(p.cantidad)} cajas`)}
+  <div class="modal-body space-y-5">
+    <div class="flex flex-wrap gap-2">${badge(p.etapa, hjEtapaColor(p.etapa))}${p.prioridad === 'Urgente' ? badge('Urgente', '#dc2626') : ''}${badge(hjTipoLabel(p.tipo) + ' × ' + (HJ_EQ[p.tipo] ?? 1), '#475569')}${badge(hjFmtEq(hjEq(p)) + ' equiv.', '#2563eb')}${p.lugar ? badge(p.lugar, '#7c3aed') : ''}</div>
+    <div class="grid grid-cols-3 sm:grid-cols-9 gap-1.5">${HJ_ETAPAS.map((s, i) => `<button class="rounded-lg border px-1.5 py-2 text-[11px] leading-tight font-semibold text-center ${i <= idx && p.etapa !== 'Cancelado' ? 'bg-green-600 border-green-600 text-white' : 'bg-white border-slate-200 text-slate-500'}" data-act="hj-etapa" data-id="${p.id}" data-v="${esc(s)}">${i + 1}. ${s}</button>`).join('')}</div>
+    <div class="grid sm:grid-cols-4 gap-3 text-sm">
+      <div class="rounded-xl border border-slate-200 p-3"><div class="text-[11px] text-slate-500">Cantidad</div><div class="font-bold text-lg">${num(p.cantidad)}</div></div>
+      <div class="rounded-xl border border-slate-200 p-3"><div class="text-[11px] text-slate-500">Entregado</div><div class="font-bold text-lg text-green-700">${ent}</div></div>
+      <div class="rounded-xl border border-slate-200 p-3"><div class="text-[11px] text-slate-500">Pendiente</div><div class="font-bold text-lg text-amber-700">${pend}</div></div>
+      <div class="rounded-xl border border-slate-200 p-3"><div class="text-[11px] text-slate-500">Entrega comprometida</div><div class="font-bold ${!hjDone(p) && isYMD(p.fechaEntrega) && p.fechaEntrega < today() ? 'text-red-600' : ''}">${fmtDate(p.fechaEntrega)}</div></div>
+    </div>
+    ${p.notas ? `<div class="rounded-xl bg-amber-50 border border-amber-100 p-3 text-sm whitespace-pre-line">${esc(p.notas)}</div>` : ''}
+    <div class="flex flex-wrap gap-2">
+      <button class="btn btn-sm" data-act="hj-edit" data-id="${p.id}">${ic('pencil')}Editar datos</button>
+      <button class="btn btn-sm" data-act="hj-wa" data-id="${p.id}">${ic('message-circle')}Notificar estado por WhatsApp</button>
+      ${(p.adjuntos || []).length ? `<button class="btn btn-sm" data-act="hj-wa-diseno" data-id="${p.id}">${ic('image')}Enviar diseño para aprobación</button>` : ''}
+      ${p.etapa !== 'Cancelado' ? `<button class="btn btn-sm btn-danger" data-act="hj-etapa" data-id="${p.id}" data-v="Cancelado">${ic('ban')}Cancelar pedido</button>` : `<button class="btn btn-sm" data-act="hj-etapa" data-id="${p.id}" data-v="Solicitud recibida">${ic('rotate-ccw')}Reactivar</button>`}
+    </div>
+
+    ${attachmentsPanel('hjPedidos', p).replace('Expediente digital · archivos en Drive', '1. Diseños para aprobación y archivos (Drive)')}
+
+    <div class="grid lg:grid-cols-2 gap-4">
+      <div class="rounded-2xl border border-slate-200 p-4 space-y-3"><div class="font-bold">Cantidad y tipo del pedido</div>
+        <div class="grid grid-cols-2 gap-2"><label class="block"><span class="lbl">Nueva cantidad de cajas</span><input id="hjQ_new" class="inp" type="number" min="${ent}" value="${num(p.cantidad)}"></label><label class="block"><span class="lbl">Motivo del ajuste</span><input id="hjQ_mot" class="inp" placeholder="Opcional"></label></div>
+        <div class="text-[11px] text-slate-500">Ya entregado: ${ent}. El nuevo total no puede ser menor.</div>
+        <button class="btn btn-sm" data-act="hj-cantidad" data-id="${p.id}">${ic('check')}Guardar cantidad</button>
+        <label class="block pt-2 border-t border-slate-100"><span class="lbl">Tipo / tamaño</span><select class="inp" data-hj-tipo="${p.id}">${optionsHTML(HJ_TIPOS.map(t => ({ v:t.v, l:`${t.l} (× ${t.eq})` })), p.tipo)}</select></label>
+        <label class="block"><span class="lbl">Prioridad</span><select class="inp" data-hj-prio="${p.id}">${optionsHTML(['Normal', 'Urgente'], p.prioridad || 'Normal')}</select></label>
+      </div>
+      <div class="rounded-2xl border border-slate-200 p-4 space-y-2"><div class="font-bold">2. Registrar entrega ${pend ? 'parcial' : ''}</div>
+        ${pend ? `<div class="grid grid-cols-2 gap-2">
+          <label class="block"><span class="lbl">Cantidad entregada</span><input id="hjE_cant" class="inp" type="number" min="1" max="${pend}" value="${pend}"></label>
+          <label class="block"><span class="lbl">Fecha de entrega</span><input id="hjE_fecha" class="inp" type="date" value="${today()}"></label>
+          <label class="block"><span class="lbl">Quién recibe</span><input id="hjE_rec" class="inp" value="${esc(p.solicito || hjS().contacto || '')}"></label>
+          <label class="block"><span class="lbl">Conformidad</span><select id="hjE_conf" class="inp">${optionsHTML(HJ_CONF, 'Aceptación digital')}</select></label>
+          <label class="block col-span-2"><span class="lbl">Observaciones</span><input id="hjE_obs" class="inp" placeholder="Ej. 90 normales + 40 especiales, se envían por Uber"></label></div>
+          <button class="btn btn-primary btn-sm" data-act="hj-entrega" data-id="${p.id}">${ic('truck')}Registrar entrega</button>` : '<div class="text-sm text-green-700 font-semibold">Pedido entregado completo.</div>'}
+      </div>
+    </div>
+
+    <div><div class="font-bold mb-2">Historial de entregas</div>${(p.entregas || []).length ? `<div class="space-y-2">${(p.entregas || []).slice().reverse().map(e => `<div class="rounded-xl border border-slate-200 px-3 py-2 flex items-center gap-2"><div class="min-w-0 flex-1"><div class="text-sm font-semibold">Entrega ${e.n}: ${num(e.cant)} unidades</div><div class="text-[11px] text-slate-500">${fmtDate(e.fecha)} · Recibe: ${esc(e.recibe || '—')} · ${esc(e.conf || '')}</div>${e.obs ? `<div class="text-[12px] text-slate-600">${esc(e.obs)}</div>` : ''}</div>
+      <button class="btn btn-ghost btn-sm" data-act="hj-recibo" data-id="${p.id}" data-n="${e.n}" title="Recibo">${ic('printer')}</button><button class="btn btn-ghost btn-sm" data-act="hj-entrega-edit" data-id="${p.id}" data-n="${e.n}" title="Modificar cantidad">${ic('pencil')}</button><button class="btn btn-ghost btn-sm text-red-600" data-act="hj-entrega-del" data-id="${p.id}" data-n="${e.n}" title="Eliminar entrega">${ic('trash-2')}</button></div>`).join('')}</div>` : '<div class="text-sm text-slate-400">Sin entregas registradas.</div>'}</div>
+
+    <div><div class="font-bold mb-2">Bitácora del pedido</div>
+      <div class="flex gap-2 mb-2"><input id="hjNote" class="inp" placeholder="Agregar nota…"><button class="btn btn-dark" data-act="hj-note" data-id="${p.id}">${ic('send')}</button></div>
+      <div class="space-y-2 max-h-72 overflow-y-auto">${(p.bitacora || []).slice().reverse().map(n => `<div class="rounded-xl bg-slate-50 px-3 py-2 text-sm"><div class="whitespace-pre-line">${esc(n.texto)}</div><div class="text-[11px] text-slate-400">${n.at ? fmtDateTime(n.at) : esc(n.fechaTxt || '')}${n.device ? ' · ' + esc(n.device) : ''}</div></div>`).join('') || '<div class="text-sm text-slate-400">Sin movimientos.</div>'}</div></div>
+  </div>
+  <div class="modal-foot"><button class="btn btn-danger mr-auto" data-act="hj-del" data-id="${p.id}">${ic('trash-2')}Eliminar</button><button class="btn" data-act="modal-close">Cerrar</button></div>`, 'xl');
+  ui.openHJ = p.id;
+}
+function hjSetEtapa(id, etapa) {
+  const p = getRec('hjPedidos', id); if (!p || p.etapa === etapa) return;
+  if (etapa === 'Entregado' && hjPendiente(p) > 0 && !confirm(`Faltan ${hjPendiente(p)} cajas por registrar como entregadas. ¿Marcar como Entregado de todos modos?`)) return;
+  upsert('hjPedidos', { id, etapa, bitacora: hjLog(p, `Estado: ${p.etapa} → ${etapa}`) }, { silent:true });
+  render(); openHJ(id);
+}
+function hjRegistrarEntrega(id) {
+  const p = getRec('hjPedidos', id); if (!p) return;
+  const cant = num($('#hjE_cant').value); const pend = hjPendiente(p);
+  if (cant <= 0 || cant > pend) { toast(`La cantidad debe estar entre 1 y ${pend}`, 'error'); return; }
+  const n = Math.max(0, ...(p.entregas || []).map(e => num(e.n))) + 1;
+  const e = { n, cant, fecha: $('#hjE_fecha').value || today(), recibe: $('#hjE_rec').value.trim(), conf: $('#hjE_conf').value, obs: $('#hjE_obs').value.trim() };
+  const entregas = [...(p.entregas || []), e];
+  const saldo = num(p.cantidad) - entregas.reduce((s, x) => s + num(x.cant), 0);
+  const etapa = saldo <= 0 ? 'Entregado' : 'Entrega parcial';
+  upsert('hjPedidos', { id, entregas, etapa, bitacora: hjLog(p, `Entrega ${n}: ${cant} unidades entregadas a ${e.recibe || '—'}. Saldo pendiente: ${Math.max(0, saldo)}.${e.obs ? ' ' + e.obs : ''}`) }, { silent:true });
+  render(); toast(`Entrega ${n} registrada`, 'ok'); openHJ(id);
+}
+function hjRecibo(id, n) {
+  const p = getRec('hjPedidos', id); const e = p && (p.entregas || []).find(x => num(x.n) === num(n)); if (!e) return;
+  const w = window.open('', '_blank'); if (!w) { toast('Permite ventanas emergentes para imprimir', 'error'); return; }
+  const prev = (p.entregas || []).filter(x => num(x.n) <= num(n)).reduce((s, x) => s + num(x.cant), 0);
+  w.document.write(`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Recibo ${esc(p.folio)}-E${e.n}</title><style>body{font-family:Inter,Arial,sans-serif;margin:32px;color:#0f172a;font-size:14px}h1{margin:0}.row{display:flex;justify-content:space-between}.box{border:1px solid #cbd5e1;border-radius:10px;padding:14px;margin-top:16px}td{padding:6px 4px}.sig{margin-top:60px;display:flex;gap:40px}.sig div{flex:1;border-top:1px solid #0f172a;padding-top:6px;text-align:center}@media print{button{display:none}}</style></head><body>
+    <div class="row"><div><h1>${esc(db.settings.empresa)}</h1><div>Recibo de entrega · Hebillas JA</div></div><div style="text-align:right"><b>${esc(p.folio)}</b><br>Entrega ${e.n}<br>${fmtDate(e.fecha)}</div></div>
+    <div class="box"><table><tr><td>Pedido</td><td><b>${esc(p.titulo)}</b>${p.lugar ? ' · ' + esc(p.lugar) : ''}</td></tr><tr><td>Tipo</td><td>${esc(hjTipoLabel(p.tipo))}</td></tr><tr><td>Cantidad entregada</td><td><b>${num(e.cant)}</b> unidades</td></tr><tr><td>Acumulado entregado</td><td>${prev} de ${num(p.cantidad)} · Saldo pendiente: ${Math.max(0, num(p.cantidad) - prev)}</td></tr><tr><td>Recibe</td><td>${esc(e.recibe || '')}</td></tr><tr><td>Conformidad</td><td>${esc(e.conf || '')}</td></tr>${e.obs ? `<tr><td>Observaciones</td><td>${esc(e.obs)}</td></tr>` : ''}</table></div>
+    <div class="sig"><div>Entrega · ${esc(db.settings.empresa)}</div><div>Recibe · ${esc(e.recibe || '')}</div></div>
+    <button onclick="print()" style="margin-top:24px;padding:10px 16px;border:0;border-radius:8px;background:#f97316;color:#fff;font-weight:700">Imprimir / Guardar PDF</button><script>setTimeout(function(){print()},400)<\/script></body></html>`);
+  w.document.close();
+}
+function hjInformePrint(numInf) {
+  const i = hjInformesCalc().find(x => x.num === num(numInf)); if (!i) return;
+  const w = window.open('', '_blank'); if (!w) { toast('Permite ventanas emergentes para imprimir', 'error'); return; }
+  w.document.write(`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Informe ${String(i.num).padStart(3, '0')} Hebillas JA</title><style>body{font-family:Inter,Arial,sans-serif;margin:28px;color:#0f172a;font-size:13px}table{width:100%;border-collapse:collapse;margin-top:14px}th{background:#0f172a;color:#fff;text-align:left;padding:7px;font-size:11px}td{padding:7px;border-bottom:1px solid #e2e8f0}.r{text-align:right}@media print{button{display:none}}</style></head><body>
+    <h2 style="margin:0">${esc(db.settings.empresa)} · Informe de producción ${String(i.num).padStart(3, '0')}</h2><div>Hebillas JA · ${i.cerrado ? 'Cerrado' + (i.rec.cerradoEn ? ' el ' + fmtDate(i.rec.cerradoEn) : '') : 'En curso'}${i.cerrado && i.rec.factura ? ' · Factura ' + esc(i.rec.factura) : ''}</div>
+    <table><thead><tr><th>Folio</th><th>Evento</th><th>Tipo</th><th class="r">Piezas</th><th class="r">Equiv.</th><th>Estado</th></tr></thead><tbody>
+    ${i.ps.map(p => `<tr><td>${esc(p.folio)}</td><td>${esc(p.titulo)}${p.lugar ? ' · ' + esc(p.lugar) : ''}</td><td>${esc(hjTipoLabel(p.tipo))}</td><td class="r">${num(p.cantidad)}</td><td class="r">${hjFmtEq(hjEq(p))}</td><td>${esc(p.etapa)}</td></tr>`).join('')}
+    <tr><td colspan="3" class="r">Piezas reales / equivalencias del informe</td><td class="r"><b>${i.pz}</b></td><td class="r"><b>${hjFmtEq(i.eq)}</b></td><td></td></tr>
+    <tr><td colspan="4" class="r">Saldo del informe anterior</td><td class="r">${hjFmtEq(i.saldo)}</td><td></td></tr>
+    <tr><td colspan="4" class="r"><b>Total con saldo</b></td><td class="r"><b>${hjFmtEq(i.total)}</b></td><td></td></tr>
+    <tr><td colspan="4" class="r">Excedente para el siguiente informe</td><td class="r">${hjFmtEq(i.exc)}</td><td></td></tr></tbody></table>
+    <button onclick="print()" style="margin-top:20px;padding:10px 16px;border:0;border-radius:8px;background:#f97316;color:#fff;font-weight:700">Imprimir / Guardar PDF</button><script>setTimeout(function(){print()},400)<\/script></body></html>`);
+  w.document.close();
+}
+function openHJJornada(id) {
+  const j = id ? getRec('hjJornadas', id) : null;
+  const ops = hjS().est.ops;
+  const blockRow = (b = {}) => `<div class="hj-blk grid grid-cols-12 gap-2 items-center"><select class="inp col-span-12 sm:col-span-6" data-b="opId">${optionsHTML([...ops.map(o => ({ v:o.id, l:o.nombre })), { v:'otro', l:'Otro trabajo' }], b.opId || ops[0].id)}</select><input class="inp col-span-5 sm:col-span-2" data-b="piezas" type="number" min="0" placeholder="Piezas" value="${esc(b.piezas ?? '')}"><input class="inp col-span-5 sm:col-span-3" data-b="minutos" type="number" min="0" placeholder="Minutos" value="${esc(b.minutos ?? '')}"><button type="button" class="btn btn-ghost btn-sm col-span-2 sm:col-span-1 text-red-600" data-act="hj-blk-del">${ic('x')}</button></div>`;
+  window.__hjBlockRow = blockRow;
+  openForm({ title: j ? 'Editar jornada' : 'Registrar jornada', sub:'Productividad diaria · Hebillas JA', data: j || { fecha: today(), entrada:'09:00', salida:'18:00', comida:30, descansos:0, prep:30, compu:0, operador: db.settings.usuario || '' },
+    fields: [ { k:'fecha', label:'Fecha', type:'date', req:true }, { k:'operador', label:'Operador' }, { k:'entrada', label:'Entrada', type:'time' }, { k:'salida', label:'Salida', type:'time' }, { k:'comida', label:'Comida (min)', type:'number' }, { k:'descansos', label:'Descansos (min)', type:'number' }, { k:'prep', label:'Preparación y limpieza (min)', type:'number' }, { k:'compu', label:'Computadora / diseño (min)', type:'number' }, { k:'notas', label:'Notas de la jornada', type:'textarea' } ],
+    extra: `<div class="mt-4 rounded-xl border border-slate-200 p-3 space-y-2"><div class="flex justify-between items-center"><div class="font-semibold text-sm">Bloques de trabajo (proceso · piezas · minutos)</div><button type="button" class="btn btn-sm" data-act="hj-blk-add">${ic('plus')}Bloque</button></div><div id="hjBlocks" class="space-y-2">${((j && j.bloques && j.bloques.length) ? j.bloques : [{}]).map(blockRow).join('')}</div><div class="text-[11px] text-slate-500">Estos tiempos alimentan la "referencia real" de la estimación por lote.</div></div>`,
+    onDelete: j ? () => { if (confirm('¿Eliminar esta jornada?')) { removeRec('hjJornadas', j.id); closeModal(); } } : null,
+    onSave: v => {
+      const bloques = $$('#hjBlocks .hj-blk').map(r => ({ opId: r.querySelector('[data-b=opId]').value, piezas: num(r.querySelector('[data-b=piezas]').value), minutos: num(r.querySelector('[data-b=minutos]').value) })).filter(b => b.minutos > 0);
+      upsert('hjJornadas', j ? { id:j.id, ...v, bloques } : { ...v, bloques });
+      closeModal(); toast('Jornada guardada', 'ok');
+    } });
+}
+function hjWhatsApp(id, diseno) {
+  const p = getRec('hjPedidos', id); if (!p) return;
+  const tel = waNumber(p.telefono || hjS().telefono);
+  const txt = diseno
+    ? `Hola ${p.solicito || ''}, te comparto el diseño del pedido ${p.folio} "${p.titulo}" para tu aprobación:\n${(p.adjuntos || []).map(a => `• ${a.name}: ${a.link}`).join('\n')}\n\n¿Nos confirmas si lo aprobamos para iniciar producción? Gracias.`
+    : `Hola ${p.solicito || ''}, te comparto el estado del pedido ${p.folio} "${p.titulo}":\n• Estado: ${p.etapa}\n• Cantidad: ${num(p.cantidad)} ${hjTipoLabel(p.tipo).toLowerCase()}\n• Entregado: ${hjEntregado(p)} · Pendiente: ${hjPendiente(p)}${isYMD(p.fechaEntrega) && !hjDone(p) ? `\n• Entrega comprometida: ${fmtDate(p.fechaEntrega)}` : ''}\n\n${db.settings.empresa}`;
+  window.open(`https://wa.me/${tel}?text=${encodeURIComponent(txt)}`, '_blank', 'noopener');
+  if (diseno && hjStepIdx(p) < 1) { upsert('hjPedidos', { id, etapa:'Diseño enviado', bitacora: hjLog(p, 'Diseño enviado para aprobación por WhatsApp') }, { silent:true }); render(); openHJ(id); }
+}
+
+Object.assign(H, {
+  'hj-tab': el => { ui.hjTab = el.dataset.v; render(); },
+  'hj-per': el => { ui.hjPer = el.dataset.v; render(); },
+  'hj-new': () => openHJForm(null),
+  'hj-edit': el => openHJForm(el.dataset.id),
+  'open-hj': el => openHJ(el.dataset.id),
+  'hj-del': el => { const p = getRec('hjPedidos', el.dataset.id); if (p && confirm(`¿Eliminar el pedido ${p.folio}? Si ya está en un informe cerrado, el informe dejará de contarlo.`)) { removeRec('hjPedidos', p.id); closeModal(); toast('Pedido eliminado'); } },
+  'hj-etapa': el => hjSetEtapa(el.dataset.id, el.dataset.v),
+  'hj-entrega': el => hjRegistrarEntrega(el.dataset.id),
+  'hj-recibo': el => hjRecibo(el.dataset.id, el.dataset.n),
+  'hj-entrega-del': el => { const p = getRec('hjPedidos', el.dataset.id); const e = p && (p.entregas || []).find(x => num(x.n) === num(el.dataset.n)); if (!e || !confirm(`¿Eliminar la entrega ${e.n} (${e.cant} unidades)?`)) return; const entregas = p.entregas.filter(x => x !== e); const saldo = num(p.cantidad) - entregas.reduce((s, x) => s + num(x.cant), 0); upsert('hjPedidos', { id:p.id, entregas, etapa: saldo <= 0 ? 'Entregado' : (entregas.length ? 'Entrega parcial' : (p.etapa === 'Entregado' || p.etapa === 'Entrega parcial' ? 'Empacado' : p.etapa)), bitacora: hjLog(p, `Entrega ${e.n} eliminada (${e.cant} unidades). Saldo pendiente: ${saldo}.`) }, { silent:true }); render(); openHJ(p.id); },
+  'hj-entrega-edit': el => { const p = getRec('hjPedidos', el.dataset.id); const e = p && (p.entregas || []).find(x => num(x.n) === num(el.dataset.n)); if (!e) return; const otros = hjEntregado(p) - num(e.cant); const v = prompt(`Nueva cantidad para la entrega ${e.n} (máximo ${num(p.cantidad) - otros}):`, e.cant); if (v == null) return; const c = num(v); if (c <= 0 || c > num(p.cantidad) - otros) { toast('Cantidad inválida', 'error'); return; } const entregas = p.entregas.map(x => x === e ? { ...x, cant:c } : x); const saldo = num(p.cantidad) - otros - c; upsert('hjPedidos', { id:p.id, entregas, etapa: saldo <= 0 ? 'Entregado' : 'Entrega parcial', bitacora: hjLog(p, `Entrega ${e.n} modificada: ${e.cant} → ${c} unidades. Saldo pendiente: ${saldo}.`) }, { silent:true }); render(); openHJ(p.id); },
+  'hj-cantidad': el => { const p = getRec('hjPedidos', el.dataset.id); if (!p) return; const c = num($('#hjQ_new').value); const ent = hjEntregado(p); if (c < Math.max(1, ent)) { toast(`El total no puede ser menor a lo entregado (${ent})`, 'error'); return; } if (c === num(p.cantidad)) return; const mot = $('#hjQ_mot').value.trim(); upsert('hjPedidos', { id:p.id, cantidad:c, etapa: c - ent > 0 && p.etapa === 'Entregado' ? 'Entrega parcial' : (c === ent && ent > 0 ? 'Entregado' : p.etapa), bitacora: hjLog(p, `Cantidad ajustada: ${p.cantidad} → ${c}.${mot ? ' Motivo: ' + mot : ''}`) }, { silent:true }); render(); toast('Cantidad actualizada', 'ok'); openHJ(p.id); },
+  'hj-note': el => { const t = $('#hjNote').value.trim(); if (!t) return; const p = getRec('hjPedidos', el.dataset.id); upsert('hjPedidos', { id:p.id, bitacora: hjLog(p, t) }, { silent:true }); render(); openHJ(p.id); },
+  'hj-wa': el => hjWhatsApp(el.dataset.id, false),
+  'hj-wa-diseno': el => hjWhatsApp(el.dataset.id, true),
+  'hj-config': () => openForm({ title:'Contacto y parámetros Hebillas JA', data: hjS(), fields: [ { k:'contacto', label:'Contacto principal', ph:'Araceli' }, { k:'telefono', label:'WhatsApp del contacto', type:'tel' }, { k:'meta', label:'Equivalencias por informe', type:'number', def:800 } ], onSave: v => { updateSettings({ hj: { ...hjS(), ...v, meta: num(v.meta) || 800 } }); closeModal(); toast('Guardado', 'ok'); } }),
+  'hj-ops-reset': () => { if (confirm('¿Restaurar los procesos y tiempos iniciales?')) updateSettings({ hj: { ...hjS(), est: { ...hjS().est, ops: HJ_OPS_DEFAULT.map(o => ({ ...o })) } } }); },
+  'hj-use-real': el => { const i = num(el.dataset.i); const o = hjS().est.ops[i]; const r = hjRealRate(o.id); if (!r) return; hjSetEst(`ops.${i}.min`, Math.round(r.minPorPieza * num(o.pzs) * 10) / 10); toast('Tiempo real aplicado', 'ok'); },
+  'hj-jornada': el => openHJJornada(el.dataset.id || null),
+  'hj-blk-add': () => { $('#hjBlocks').insertAdjacentHTML('beforeend', window.__hjBlockRow({})); icons(); },
+  'hj-blk-del': el => { const rows = $$('#hjBlocks .hj-blk'); if (rows.length > 1) el.closest('.hj-blk').remove(); },
+  'hj-inf-close': () => hjCerrarInforme(),
+  'hj-inf-print': el => hjInformePrint(el.dataset.n),
+  'hj-inf-edit': el => { const r = getRec('hjInformes', el.dataset.id); if (!r) return; openForm({ title:`Informe ${String(r.num).padStart(3, '0')} · factura`, data:r, fields: [ { k:'factura', label:'Folio fiscal de la factura (UUID)', full:true }, { k:'pagada', label:'', type:'checkbox', text:'Factura pagada' }, { k:'cerradoEn', label:'Fecha de cierre', type:'date' } ], onDelete: () => { if (confirm('¿Reabrir este informe? Sus pedidos regresan al informe en curso.')) { removeRec('hjInformes', r.id); closeModal(); } }, onSave: v => { upsert('hjInformes', { id:r.id, ...v }); closeModal(); toast('Informe actualizado', 'ok'); } }); },
+  'print': () => window.print()
+});
+
+
 document.addEventListener('click', e => {
   const el = e.target.closest('[data-act]');
   if (!el) return;
@@ -1810,12 +2236,16 @@ document.addEventListener('change', e => {
     upsert('proyectos', { id:p.id, etapa, avance: etapa === 'Entregado' ? 100 : Math.max(num(p.avance), ETAPA_AVANCE[etapa] || 0), bitacora:[...(p.bitacora || []), { texto:`Etapa: ${p.etapa} → ${etapa}`, at:Date.now(), device:deviceLabel() }] }, { silent:true });
     render(); openExpediente(p.id);
   }
+  if (t.dataset.hjv) { hjSetEst(t.dataset.hjv, t.type === 'checkbox' ? t.checked : t.value); return; }
+  if (t.dataset.hjTipo) { const p = getRec('hjPedidos', t.dataset.hjTipo); if (p && p.tipo !== t.value) { upsert('hjPedidos', { id:p.id, tipo:t.value, bitacora: hjLog(p, `Tipo: ${hjTipoLabel(p.tipo)} → ${hjTipoLabel(t.value)}`) }, { silent:true }); render(); openHJ(p.id); } return; }
+  if (t.dataset.hjPrio) { const p = getRec('hjPedidos', t.dataset.hjPrio); if (p) { upsert('hjPedidos', { id:p.id, prioridad:t.value, bitacora: hjLog(p, `Prioridad: ${t.value}`) }, { silent:true }); render(); openHJ(p.id); } return; }
   if (t.id === 'restoreInput' && t.files[0]) restoreFromFile(t.files[0]);
   if (t.id === 'attachInput' && t.files.length) handleAttachFiles(Array.from(t.files));
 });
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape' && $('#modalRoot').innerHTML) closeModal();
   if (e.key === 'Enter' && e.target.id === 'expNote') { e.preventDefault(); const b = $('[data-act="exp-note"]'); b && H['exp-note'](b); }
+  if (e.key === 'Enter' && e.target.id === 'hjNote') { e.preventDefault(); const b = $('[data-act="hj-note"]'); b && H['hj-note'](b); }
   if (e.key === 'Enter' && e.target.closest && e.target.closest('#modalForm') && e.target.tagName === 'INPUT' && e.target.type !== 'checkbox') e.preventDefault();
 });
 document.addEventListener('pointerdown', () => Sync.trySilentOnGesture(), { capture:true });
