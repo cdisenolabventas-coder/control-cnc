@@ -124,7 +124,7 @@
    Alcance: drive.file (la app solo ve los archivos que ella misma crea)
    ========================================================================= */
 
-const APP_VERSION = '1.4.0';
+const APP_VERSION = '1.5.0';
 const KEYS = { db:'ccmx_db_v1', sync:'ccmx_sync_v1', cfg:'ccmx_cfg_v1', token:'ccmx_token_v1', ui:'ccmx_ui_v1', device:'ccmx_device_v1' };
 const DRIVE = 'https://www.googleapis.com/drive/v3';
 const UPLOAD = 'https://www.googleapis.com/upload/drive/v3';
@@ -2392,7 +2392,6 @@ const LEGAL_CATS = [
 const LEGAL_ESTADOS = ['Pendiente', 'Borrador', 'En revisión', 'Vigente', 'Vencido', 'Archivado'];
 const LEGAL_TIPOS = ['Borrador / plantilla', 'Documento generado', 'Contrato firmado', 'Convenio firmado', 'Aviso publicado', 'Autorización firmada', 'Registro / título', 'Otro'];
 const legalColor = e => ({ Pendiente:'#d97706', Borrador:'#64748b', 'En revisión':'#7c3aed', Vigente:'#15803d', Vencido:'#b91c1c', Archivado:'#94a3b8' }[e] || '#64748b');
-const legalPlaceholders = txt => [...new Set(String(txt || '').match(/\[[^\]\n]{2,90}\]/g) || [])];
 const legalRevSoon = d => isYMD(d.revision) && d.estado !== 'Archivado' && daysFromToday(d.revision) <= 30;
 const legalTemplateOf = cat => list('legal').filter(d => d.categoria === cat && d.plantilla).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))[0];
 
@@ -2418,7 +2417,7 @@ PAGES.legal = () => {
         <div class="font-bold leading-tight">${esc(c.v)}</div><div class="text-[12px] text-slate-500 flex-1">${esc(c.d)}</div><div class="text-[11px] text-slate-400">${docs.length} documento(s)</div>
         <div class="flex flex-wrap gap-1">${tpl ? `<button class="btn btn-sm" data-act="legal-view" data-id="${tpl.id}">${ic('eye')}Ver contenido</button>` : ''}
           <button class="btn btn-sm" data-act="legal-new" data-cat="${esc(c.v)}" data-tipo="Contrato firmado">${ic('upload')}Cargar</button>
-          ${tpl ? `<button class="btn btn-sm" data-act="legal-generate" data-id="${tpl.id}">${ic('file-plus')}Generar</button><button class="btn btn-sm" data-act="legal-dup" data-id="${tpl.id}" title="Crear otra plantilla">${ic('copy')}</button>` : `<button class="btn btn-sm" data-act="legal-new" data-cat="${esc(c.v)}" data-tipo="Borrador / plantilla">${ic('plus')}Crear plantilla</button>`}</div></div>`; }).join('')}</div>
+          ${tpl ? `<button class="btn btn-sm btn-primary" data-act="legal-generate" data-id="${tpl.id}">${ic('clipboard-list')}Llenar formulario</button><button class="btn btn-sm" data-act="legal-dup" data-id="${tpl.id}" title="Crear otra plantilla">${ic('copy')}</button>` : `<button class="btn btn-sm" data-act="legal-new" data-cat="${esc(c.v)}" data-tipo="Borrador / plantilla">${ic('plus')}Crear plantilla</button>`}</div></div>`; }).join('')}</div>
     <section class="space-y-3"><div class="flex items-center justify-between gap-2 flex-wrap"><div><div class="font-bold">Expediente legal</div><div class="text-[12px] text-slate-500">Versiona documentos, vincúlalos a un proyecto, cliente o proveedor y conserva la fecha de revisión.</div></div><div class="text-sm text-slate-500">${rows.length} registro(s)</div></div>
       <div class="flex flex-wrap gap-2">${searchBox('legal', 'Buscar documento, cliente o proveedor…')}${selectFilter('legCat', 'Categoría', LEGAL_CATS.map(c => c.v))}${selectFilter('legEst', 'Estado', LEGAL_ESTADOS)}</div>
       <div class="card !p-0 overflow-hidden">${rows.length ? `<div class="scroll-x"><table class="tbl"><thead><tr><th>Documento</th><th class="hidden md:table-cell">Categoría</th><th>Estado</th><th>Versión</th><th class="hidden sm:table-cell">Revisión</th></tr></thead><tbody>
@@ -2428,10 +2427,11 @@ PAGES.legal = () => {
     </section>
   </div>`;
 };
-function legalHighlight(txt) { return esc(txt).replace(/\[[^\]\n]{2,90}\]/g, m => `<mark class="bg-amber-200/70 rounded px-0.5">${m}</mark>`); }
+function legalHighlight(txt) { return esc(txt).replace(/\[(?:[^\]\n]{2,90}|●)\]/g, m => `<mark class="bg-amber-200/70 rounded px-0.5">${m}</mark>`); }
 function openLegalView(id) {
   const d = getRec('legal', id); if (!d) { closeModal(); return; }
-  const ph = legalPlaceholders(d.contenido);
+  const ph = legalPlaceholders(d.contenido).filter(o => o.type !== 'chk');
+  const tplOf = d.formData && getRec('legal', d.formData.tplId);
   formCtx = null;
   openModal(`${modalHead(d.titulo, `${d.categoria} · v${d.version || '1.0'}`)}
   <div class="modal-body space-y-4">
@@ -2439,7 +2439,8 @@ function openLegalView(id) {
     <div class="grid sm:grid-cols-2 gap-x-6 text-sm">${[['Responsable', d.responsable], ['Vigente desde', d.vigencia ? fmtDate(d.vigencia) : ''], ['Revisión', d.revision ? fmtDate(d.revision) : ''], ['Proyecto', d.proyectoId ? projLabel(d.proyectoId) : ''], ['Cliente', d.clienteId ? clientName(d) : ''], ['Vinculado a', d.vinculo], ['Archivo externo', d.archivoUrl], ['Origen', d.origen]].filter(r => r[1]).map(([l, v]) => `<div class="flex justify-between gap-3 py-1.5 border-b border-slate-100"><span class="text-slate-500">${l}</span><span class="font-medium text-right break-all">${esc(v)}</span></div>`).join('')}</div>
     <div class="flex flex-wrap gap-2">
       <button class="btn btn-sm" data-act="legal-edit" data-id="${d.id}">${ic('pencil')}Editar</button>
-      ${d.contenido && ph.length ? `<button class="btn btn-sm btn-primary" data-act="legal-generate" data-id="${d.id}">${ic('file-plus')}Generar documento para cliente/proyecto</button>` : ''}
+      ${d.contenido && ph.length && !d.formData ? `<button class="btn btn-sm btn-primary" data-act="legal-generate" data-id="${d.id}">${ic('clipboard-list')}${d.plantilla ? 'Formulario de llenado' : 'Llenar campos pendientes'}</button>` : ''}
+      ${tplOf ? `<button class="btn btn-sm btn-primary" data-act="legal-regen" data-id="${d.id}">${ic('clipboard-pen')}Editar datos del formulario</button>` : ''}
       ${d.contenido ? `<button class="btn btn-sm" data-act="legal-print" data-id="${d.id}">${ic('printer')}Imprimir / PDF</button><button class="btn btn-sm" data-act="legal-word" data-id="${d.id}">${ic('file-text')}Descargar Word</button><button class="btn btn-sm" data-act="legal-copy" data-id="${d.id}">${ic('copy')}Copiar texto</button>` : ''}
       <button class="btn btn-sm" data-act="legal-dup" data-id="${d.id}">${ic('copy-plus')}Nueva versión</button>
     </div>
@@ -2477,58 +2478,396 @@ function openLegalForm(id, preset = {}) {
       render(); toast('Documento guardado', 'ok'); openLegalView(nid);
     } });
 }
-function legalPrefill(ph, ctx) {
-  const k = ph.toUpperCase(); const n = new Date();
-  const cli = ctx.cliente, pr = ctx.proyecto;
-  if (/^\[DÍA\]$/.test(k)) return String(n.getDate());
-  if (/^\[MES\]$/.test(k)) return n.toLocaleDateString('es-MX', { month:'long' });
-  if (/^\[AÑO\]$/.test(k)) return String(n.getFullYear());
-  if (/^\[FECHA\]$/.test(k)) return fmtDate(today());
-  if (/MUNICIPIO|ZAPOPAN \/ GUADALAJARA/.test(k)) return 'Zapopan';
-  if (/CNC MANUFACTURING MX \/ MADERA URBANA/.test(k) || /PRESTADOR\]/.test(k)) return db.settings.empresa || '';
-  if (/NOMBRE \/ FOLIO/.test(k) && pr) return `${pr.nombre} (${pr.folio})`;
-  if (/CLIENTE/.test(k) && cli) return cli.empresa ? `${cli.empresa}` : cli.nombre;
-  if (/OTRA PARTE|CLIENTE \/ SOCIO/.test(k) && cli) return cli.empresa || cli.nombre;
-  if (/NOMBRE COMPLETO\]/.test(k) && cli) return cli.nombre;
-  if (/RFC/.test(k) && cli && cli.rfc) return (cli.empresa || cli.nombre) + ' / ' + cli.rfc;
-  if (/router CNC \/ láser/i.test(ph) && pr) return pr.proceso || '';
-  if (/FECHA ESTIMADA/.test(k) && pr && isYMD(pr.fechaEntrega)) return fmtDate(pr.fechaEntrega);
-  return '';
+/* ===== Legal · Formularios de llenado (v1.5) =====
+   Importa el "Formulario de llenado" del sistema anterior (contratos con clientes y proveedores)
+   y crea formularios equivalentes para confidencialidad, marcas/PI y avisos. Detecta cada campo
+   del machote ([TEXTO], [●] y casillas [ ]) y lo liga a un dato del formulario. */
+const LG_RE = /\[[^\]\n]{0,90}\]/g;
+const lgNorm = s => String(s || '').replace(/[“”"«»]/g, '').replace(/\s+/g, ' ').toLowerCase();
+function legalScan(text) {
+  const t = String(text || '');
+  const heads = [];
+  t.split('\n').reduce((pos, line) => {
+    const s = line.trim();
+    if (s.length >= 5 && s.length <= 110 && !s.includes('[') && s === s.toUpperCase() && /[A-ZÁÉÍÓÚÑ]{3}/.test(s)) heads.push({ pos, title: s.replace(/[“”"]/g, '') });
+    return pos + line.length + 1;
+  }, 0);
+  const sectionAt = i => { let h = null; for (const x of heads) { if (x.pos <= i) h = x; else break; } return h ? h.title : 'ENCABEZADO'; };
+  const occ = []; let m;
+  LG_RE.lastIndex = 0;
+  while ((m = LG_RE.exec(t))) {
+    const raw = m[0], inner = raw.slice(1, -1), i = m.index;
+    const ls = t.lastIndexOf('\n', i - 1) + 1; let le = t.indexOf('\n', i); if (le < 0) le = t.length;
+    const before = t.slice(ls, i), after = t.slice(i + raw.length, le);
+    const b = lgNorm(before.slice(before.lastIndexOf(']') + 1)).slice(-90);
+    const a = lgNorm(after.split('[')[0]).slice(0, 60);
+    const type = inner.trim() === '' ? 'chk' : inner === '●' ? 'dot' : 'ph';
+    occ.push({ idx: occ.length, raw, inner, type, b, a, section: sectionAt(i), ctx: (before.slice(-60) + ' ▢ ' + after.slice(0, 40)).replace(/\s+/g, ' ').trim() });
+  }
+  return occ;
 }
-function openLegalGenerate(id) {
-  const d = getRec('legal', id); if (!d) return;
-  const ph = legalPlaceholders(d.contenido);
+const legalPlaceholders = txt => legalScan(txt);
+
+/* ---- Diccionario de datos del formulario ---- */
+const LGF = {
+  aNombre:{ l:'Nombre legal de tu empresa (prestador / contratante)', ph:'Razón social o nombre de la persona física' },
+  aTipo:{ l:'Tipo de persona', opts:['Persona física', 'Persona moral'] },
+  aMarca:{ l:'Nombre comercial', opts:['CNC Manufacturing MX', 'Madera Urbana'] },
+  aRfc:{ l:'RFC de tu empresa' }, aDomicilio:{ l:'Domicilio de tu empresa', full:true },
+  aRepresentante:{ l:'Representante (nombre y cargo)' }, aCorreo:{ l:'Correo autorizado', type:'email' }, aTel:{ l:'Teléfono / WhatsApp', type:'tel' },
+  bNombre:{ l:'Nombre legal de la otra parte', ph:'Nombre legal completo' }, bEmpresa:{ l:'Empresa de la otra parte' },
+  bRfc:{ l:'RFC de la otra parte' }, bDomicilio:{ l:'Domicilio de la otra parte', full:true },
+  bRepresentante:{ l:'Representante de la otra parte (nombre y cargo)' }, bCorreo:{ l:'Correo de la otra parte', type:'email' }, bContacto:{ l:'Correo o teléfono verificado' },
+  cotizacion:{ l:'Cotización u orden número', ph:'Ej. COT-2026-0123' }, cotFecha:{ l:'Fecha de la cotización', type:'date' },
+  proyecto:{ l:'Proyecto (nombre / folio)', full:true },
+  producto:{ l:'Producto o servicio', full:true }, cantidad:{ l:'Cantidad' }, material:{ l:'Material' }, medidas:{ l:'Medidas' },
+  proceso:{ l:'Proceso', opts:['router CNC', 'láser', 'impresión 3D', 'carpintería', 'router CNC + láser', 'otro'] },
+  acabado:{ l:'Acabado y color' }, empaque:{ l:'Empaque' }, instalacion:{ l:'¿Incluye entrega o instalación?', opts:['sí', 'no'] },
+  total:{ l:'Precio total (antes de IVA)', type:'money' }, iva:{ l:'IVA', type:'money', calc:true }, granTotal:{ l:'Total con IVA', type:'money', calc:true },
+  anticipoPct:{ l:'Anticipo (%)', type:'number', def:'65' }, anticipoMonto:{ l:'Monto del anticipo', type:'money', calc:true },
+  pagoIntermedio:{ l:'Pago intermedio', type:'money' }, etapaIntermedia:{ l:'Fecha o etapa del pago intermedio' },
+  finiquito:{ l:'Finiquito', type:'money', calc:true }, cuentaPago:{ l:'Cuenta para pagos (banco / titular / CLABE)', full:true },
+  plazo:{ l:'Plazo de fabricación (días hábiles)', type:'number' }, aprobacionDias:{ l:'Días para aprobar diseño', type:'number', def:'3' },
+  ajustes:{ l:'Rondas de ajustes incluidas', type:'number', def:'2' },
+  entregaDomicilio:{ l:'Domicilio de entrega', full:true }, entregaFecha:{ l:'Fecha estimada de entrega', type:'date' },
+  envio:{ l:'Forma de entrega', opts:['envío por “EL PRESTADOR”', 'envío contratado por “EL CLIENTE”', 'recogido por “EL CLIENTE”', 'instalación por “EL PRESTADOR”'] },
+  revisionDias:{ l:'Días para revisar al recibir', type:'number', def:'3' },
+  garantia:{ l:'Garantía (días naturales)', opts:['30', '60', '90'], def:'90' },
+  confidencialidadAnios:{ l:'Confidencialidad posterior (años)', type:'number', def:'5' },
+  avisoPrivacidad:{ l:'Dónde consultar el aviso de privacidad', ph:'www.cncmanufacturingmx.com/privacidad' },
+  arco:{ l:'Medio para derechos ARCO', ph:'Correo o procedimiento' },
+  penaPct:{ l:'Pena convencional (%)', type:'number' }, penaPeriodo:{ l:'Pena por cada', opts:['DÍA', 'SEMANA'] }, penaTope:{ l:'Tope de la pena (%)', type:'number' },
+  penaMonto:{ l:'Pena convencional ($)', type:'money' }, penaBase:{ l:'Base de cálculo de la pena' },
+  ocProducto:{ l:'Producto o servicio a suministrar', full:true }, ocCantidad:{ l:'Cantidad' }, ocEspec:{ l:'Especificaciones', full:true }, ocUnidad:{ l:'Unidad' },
+  ocPrecio:{ l:'Precio', type:'money' }, ocFecha:{ l:'Fecha requerida', type:'date' }, ocLugar:{ l:'Lugar de entrega' },
+  facturarA:{ l:'Facturar a (razón social / RFC)', full:true }, pagoDias:{ l:'Plazo de pago al proveedor', ph:'Ej. 15 días naturales' },
+  evidencia:{ l:'Requisitos de entrega', opts:['empaque', 'etiqueta', 'guía', 'evidencia fotográfica', 'empaque, etiqueta y evidencia'] },
+  correccionDias:{ l:'Plazo de corrección (días hábiles)', type:'number' }, garantiaDias:{ l:'Garantía del proveedor (días naturales)', type:'number' },
+  fuerzaHoras:{ l:'Aviso de fuerza mayor (horas)', type:'number', def:'24' },
+  inicio:{ l:'Fecha de inicio', type:'date' }, fin:{ l:'Vigente hasta', ph:'Fecha, aviso o conclusión del proyecto' },
+  medios:{ l:'Medios válidos de comunicación', ph:'Correos, teléfonos o plataformas', full:true },
+  finalidad:{ l:'Finalidad autorizada de la información', full:true },
+  terceros:{ l:'Elementos de terceros incluidos' },
+  esquemaPI:{ l:'Esquema de derechos', opts:['Cesión de derechos', 'Licencia exclusiva', 'Licencia no exclusiva', 'Entrega del producto físico (sin cesión)'], full:true },
+  contraprestacion:{ l:'Contraprestación por cesión o licencia', type:'money' }, momentoPago:{ l:'Momento del pago', ph:'Ej. a la firma, a la entrega' },
+  alcanceUso:{ l:'Finalidad, productos, territorio y plazo de uso', full:true },
+  formatos:{ l:'Formatos de archivo que se entregan', opts:['PDF', 'SVG', 'DXF', 'AI', 'STL', 'STEP', 'DWG', 'PDF y DXF'] },
+  publicacion:{ l:'Dónde se publica el aviso', opts:['sitio web', 'correo', 'aviso en establecimiento'] },
+  fechaAct:{ l:'Fecha de última actualización', type:'date' },
+  mediosUso:{ l:'Medios donde se usará la imagen', opts:['portafolio', 'redes sociales', 'sitio web', 'catálogo', 'campaña'] },
+  territorio:{ l:'Territorio', opts:['MÉXICO', 'MUNDIAL'] }, vigenciaUso:{ l:'Vigencia de la autorización', ph:'Ej. 3 años' },
+  revocacion:{ l:'Medio para revocar la autorización' },
+  docAceptado:{ l:'Documento aceptado' }, docVersion:{ l:'Versión del documento aceptado' }, fechaHora:{ l:'Fecha y hora de aceptación' },
+  medioAceptacion:{ l:'Medio de aceptación', opts:['correo', 'WhatsApp', 'plataforma', 'firma electrónica'] },
+  jurisdiccion:{ l:'Tribunales competentes', opts:['ZAPOPAN', 'GUADALAJARA'], def:'ZAPOPAN' },
+  lugarFirma:{ l:'Lugar de firma (municipio)', def:'Zapopan' }, fechaFirma:{ l:'Fecha de firma', type:'date' }
+};
+const LGF_SECTIONS = {
+  'Contratos con clientes': [
+    ['Partes y representantes', ['aNombre', 'aTipo', 'aMarca', 'aRfc', 'aDomicilio', 'aRepresentante', 'aCorreo', 'aTel', 'bNombre', 'bRfc', 'bDomicilio', 'bRepresentante']],
+    ['Proyecto y alcance', ['cotizacion', 'cotFecha', 'proyecto', 'producto', 'cantidad', 'material', 'medidas', 'proceso', 'acabado', 'empaque', 'instalacion']],
+    ['Precio y forma de pago', ['total', 'iva', 'granTotal', 'anticipoPct', 'anticipoMonto', 'pagoIntermedio', 'etapaIntermedia', 'finiquito', 'cuentaPago']],
+    ['Plazos, entrega y garantía', ['plazo', 'aprobacionDias', 'ajustes', 'entregaDomicilio', 'entregaFecha', 'envio', 'revisionDias', 'garantia', 'confidencialidadAnios', 'penaPct', 'avisoPrivacidad', 'arco']],
+    ['Jurisdicción y firma', ['jurisdiccion', 'lugarFirma', 'fechaFirma']]
+  ],
+  'Proveedores y subcontratistas': [
+    ['Partes', ['aNombre', 'aRfc', 'aRepresentante', 'bNombre', 'bRfc', 'bRepresentante', 'facturarA']],
+    ['Orden de compra', ['ocProducto', 'ocCantidad', 'ocEspec', 'ocUnidad', 'ocPrecio', 'ocFecha', 'ocLugar', 'pagoDias']],
+    ['Entrega, calidad y penas', ['entregaFecha', 'entregaDomicilio', 'evidencia', 'penaPct', 'penaPeriodo', 'penaTope', 'correccionDias', 'garantiaDias', 'confidencialidadAnios', 'fuerzaHoras']],
+    ['Vigencia, jurisdicción y firma', ['inicio', 'fin', 'medios', 'jurisdiccion', 'lugarFirma', 'fechaFirma']]
+  ],
+  'Convenios de confidencialidad': [
+    ['Partes', ['aNombre', 'aRepresentante', 'bNombre', 'bRepresentante']],
+    ['Información y vigencia', ['proyecto', 'finalidad', 'inicio', 'fin', 'confidencialidadAnios', 'medios']],
+    ['Pena convencional', ['penaMonto', 'penaBase']],
+    ['Jurisdicción y firma', ['jurisdiccion', 'lugarFirma', 'fechaFirma']]
+  ],
+  'Marcas y propiedad intelectual': [
+    ['Partes y proyecto', ['aNombre', 'aRepresentante', 'bNombre', 'bRepresentante', 'proyecto', 'terceros']],
+    ['Derechos y contraprestación', ['esquemaPI', 'contraprestacion', 'momentoPago', 'alcanceUso', 'formatos']],
+    ['Jurisdicción y firma', ['jurisdiccion', 'lugarFirma', 'fechaFirma']]
+  ],
+  'Avisos y autorizaciones': [
+    ['Responsable', ['aNombre', 'aDomicilio', 'aCorreo', 'arco', 'publicacion', 'fechaAct']],
+    ['Autorización de uso de imagen / proyecto', ['bNombre', 'bCorreo', 'mediosUso', 'territorio', 'vigenciaUso', 'revocacion']],
+    ['Aceptación digital', ['docAceptado', 'docVersion', 'proyecto', 'bEmpresa', 'bContacto', 'fechaHora', 'medioAceptacion']],
+    ['Firma', ['lugarFirma', 'fechaFirma', 'jurisdiccion', 'medios']]
+  ]
+};
+/* Reglas: ph = texto del corchete · b = texto antes del campo · a = texto después · sec = cláusula · keys = 1ª, 2ª coincidencia… */
+const CLI = ['Contratos con clientes'], PROV = ['Proveedores y subcontratistas'], NDA = ['Convenios de confidencialidad'], PI = ['Marcas y propiedad intelectual'], AV = ['Avisos y autorizaciones'];
+const LGF_RULES = [
+  { ph:/^ZAPOPAN \/ GUADALAJARA$/, k:'jurisdiccion' }, { ph:/^MUNICIPIO$/, k:'lugarFirma' },
+  { ph:/^DÍA$/, k:'fechaFirma', fmt:'dia' }, { ph:/^MES$/, k:'fechaFirma', fmt:'mes' }, { ph:/^AÑO$/, k:'fechaFirma', fmt:'anio' },
+  { ph:/^DÍA\] de \[MES\] de \[AÑO$/, k:'fechaFirma', fmt:'larga' },
+  { ph:/^NOMBRE LEGAL (DE CNC|COMPLETO DEL PRESTADOR)/, k:'aNombre' },
+  { ph:/^NOMBRE \/ FOLIO$/, k:'proyecto' }, { ph:/^CORREOS \/ TELÉFONOS \/ PLATAFORMAS$/, k:'medios' },
+  { dot:/nombre y cargo: ?$/, keys:['aRepresentante', 'bRepresentante'] },
+  // Contratos con clientes (machote del sistema anterior)
+  { cats:CLI, ph:/^PERSONA FÍSICA O PERSONA MORAL$/, k:'aTipo' }, { cats:CLI, ph:/^CNC MANUFACTURING MX \/ MADERA URBANA/, k:'aMarca' },
+  { cats:CLI, ph:/^NOMBRE LEGAL COMPLETO DEL CLIENTE$/, k:'bNombre' },
+  { cats:CLI, dot:/con rfc $/, keys:['aRfc', 'bRfc'] }, { cats:CLI, dot:/(^|[^y] )domicilio en $/, keys:['aDomicilio', 'bDomicilio'] },
+  { cats:CLI, dot:/representada en este acto por $/, k:'aRepresentante' }, { cats:CLI, dot:/representada por $/, k:'bRepresentante' },
+  { cats:CLI, dot:/el correo $/, k:'aCorreo' }, { cats:CLI, dot:/whatsapp $/, k:'aTel' }, { cats:CLI, dot:/ y domicilio $/, k:'aDomicilio' },
+  { cats:CLI, dot:/cotización número $/, k:'cotizacion' }, { cats:CLI, dot:/de fecha $/, k:'cotFecha' },
+  { cats:CLI, dot:/^producto o servicio: $/, k:'producto' }, { cats:CLI, dot:/^cantidad: $/, k:'cantidad' }, { cats:CLI, dot:/^material: $/, k:'material' },
+  { cats:CLI, dot:/^medidas: $/, k:'medidas' }, { cats:CLI, dot:/^acabado y color: $/, k:'acabado' }, { cats:CLI, dot:/^empaque: $/, k:'empaque' },
+  { cats:CLI, ph:/^router CNC \/ láser/i, k:'proceso' }, { cats:CLI, ph:/^sí\/no$/i, k:'instalacion' },
+  { cats:CLI, dot:/total será de \$$/, k:'total' }, { cats:CLI, dot:/^\s*\($/, a:/^ pesos/, k:'total', fmt:'letra' },
+  { cats:CLI, dot:/iva por \$$/, k:'iva' }, { cats:CLI, dot:/un total de \$$/, k:'granTotal' },
+  { cats:CLI, dot:/anticipo: $/, k:'anticipoPct' }, { cats:CLI, dot:/equivalente a \$$/, k:'anticipoMonto' },
+  { cats:CLI, dot:/pago intermedio: \$$/, k:'pagoIntermedio' }, { cats:CLI, dot:/fecha o etapa $/, k:'etapaIntermedia' },
+  { cats:CLI, dot:/finiquito: \$$/, k:'finiquito' }, { cats:CLI, ph:/^BANCO \/ TITULAR \/ CLABE/, k:'cuentaPago' },
+  { cats:CLI, dot:/plazo estimado será de $/, k:'plazo' }, { cats:CLI, dot:/contará con $/, k:'aprobacionDias' }, { cats:CLI, dot:/incluye $/, k:'ajustes' },
+  { cats:CLI, ph:/^DOMICILIO$/, k:'entregaDomicilio' }, { cats:CLI, ph:/^FECHA ESTIMADA$/, k:'entregaFecha' }, { cats:CLI, ph:/^envío por/i, k:'envio' },
+  { cats:CLI, ph:/^\d+$/, b:/dentro de los $/, k:'revisionDias' }, { cats:CLI, ph:/^30\/60\/90$/, k:'garantia' },
+  { cats:CLI, ph:/^\d+$/, b:/durante $/, k:'confidencialidadAnios' },
+  { cats:CLI, ph:/^ENLACE O DOMICILIO$/, k:'avisoPrivacidad' }, { cats:CLI, ph:/^CORREO O PROCEDIMIENTO$/, k:'arco' },
+  { cats:CLI, dot:/pena equivalente a $/, k:'penaPct' },
+  { cats:CLI, dot:/^nombre: $/, sec:/PRESTADOR/, k:'aRepresentante' }, { cats:CLI, dot:/^nombre comercial: $/, k:'aMarca' },
+  { cats:CLI, dot:/^nombre o razón social: $/, k:'bNombre' }, { cats:CLI, dot:/^representante: $/, k:'bRepresentante' },
+  // Proveedores y subcontratistas
+  { cats:PROV, ph:/PROVEEDOR O SUBCONTRATISTA$/, k:'bNombre' }, { cats:PROV, ph:/^RAZÓN SOCIAL \/ RFC$/, k:'facturarA' },
+  { cats:PROV, dot:/producto o servicio $/, k:'ocProducto' }, { cats:PROV, dot:/cantidad $/, k:'ocCantidad' }, { cats:PROV, dot:/especificaciones $/, k:'ocEspec' },
+  { cats:PROV, dot:/unidad $/, k:'ocUnidad' }, { cats:PROV, dot:/precio $/, k:'ocPrecio' }, { cats:PROV, dot:/fecha requerida $/, k:'ocFecha' },
+  { cats:PROV, dot:/lugar de entrega $/, k:'ocLugar' }, { cats:PROV, dot:/realizará dentro de $/, k:'pagoDias' },
+  { cats:PROV, ph:/^FECHA$/, sec:/ENTREGA/, k:'entregaFecha' }, { cats:PROV, ph:/^DOMICILIO$/, k:'entregaDomicilio' }, { cats:PROV, ph:/^EMPAQUE \/ ETIQUETA/, k:'evidencia' },
+  { cats:PROV, dot:/una pena de $/, k:'penaPct' }, { cats:PROV, ph:/^DÍA \/ SEMANA$/, k:'penaPeriodo' }, { cats:PROV, dot:/tope de $/, k:'penaTope' },
+  { cats:PROV, dot:/corrección será de $/, k:'correccionDias' }, { cats:PROV, dot:/la relación y por $/, k:'confidencialidadAnios' },
+  { cats:PROV, dot:/durante $/, sec:/GARANT/, k:'garantiaDias' }, { cats:PROV, dot:/avisará dentro de $/, k:'fuerzaHoras' },
+  { cats:PROV, ph:/^FECHA$/, sec:/VIGENCIA/, k:'inicio' }, { cats:PROV, ph:/^FECHA \/ AVISO$/, k:'fin' },
+  // Convenios de confidencialidad
+  { cats:NDA, ph:/^NOMBRE LEGAL DE LA OTRA PARTE$/, k:'bNombre' }, { cats:NDA, ph:/^FINALIDAD AUTORIZADA$/, k:'finalidad' },
+  { cats:NDA, ph:/^FECHA$/, k:'inicio' }, { cats:NDA, ph:/^FECHA \/ CONCLUSIÓN DEL PROYECTO$/, k:'fin' }, { cats:NDA, ph:/^\d+$/, k:'confidencialidadAnios' },
+  { cats:NDA, dot:/convencional de \$$/, k:'penaMonto' }, { cats:NDA, ph:/^BASE DE CÁLCULO$/, k:'penaBase' },
+  // Marcas y propiedad intelectual
+  { cats:PI, ph:/^NOMBRE LEGAL DEL CLIENTE \/ SOCIO \/ PROVEEDOR$/, k:'bNombre' }, { cats:PI, dot:/de terceros: $/, k:'terceros' },
+  { cats:PI, ph:/^DESCRIBIR CESIÓN/, k:'esquemaPI' }, { cats:PI, dot:/será de \$$/, k:'contraprestacion' }, { cats:PI, ph:/^MOMENTO$/, k:'momentoPago' },
+  { cats:PI, ph:/^FINALIDAD, PRODUCTOS, TERRITORIO Y PLAZO$/, k:'alcanceUso' }, { cats:PI, ph:/^PDF \/ SVG/, k:'formatos' },
+  // Avisos y autorizaciones
+  { cats:AV, ph:/^NOMBRE LEGAL (COMPLETO )?\/ NOMBRE COMERCIAL$/, k:'aNombre' }, { cats:AV, dot:/domicilio en $/, k:'aDomicilio' },
+  { cats:AV, ph:/^CORREO \/ FORMULARIO \/ PROCEDIMIENTO$/, k:'arco' }, { cats:AV, ph:/^CORREO DEL RESPONSABLE$/, k:'aCorreo' },
+  { cats:AV, ph:/^SITIO WEB \/ CORREO \/ AVISO/, k:'publicacion' }, { cats:AV, dot:/última actualización: ?$/, k:'fechaAct' },
+  { cats:AV, ph:/^NOMBRE COMPLETO$/, k:'bNombre' }, { cats:AV, ph:/^PORTAFOLIO \/ REDES/, k:'mediosUso' }, { cats:AV, ph:/^MÉXICO \/ MUNDIAL$/, k:'territorio' },
+  { cats:AV, ph:/^CORREO \/ PROCEDIMIENTO$/, k:'revocacion' },
+  { cats:AV, dot:/^nombre: ?$/, k:'bNombre' }, { cats:AV, dot:/^correo: ?$/, k:'bCorreo' }, { cats:AV, dot:/^fecha: ?$/, k:'fechaFirma', fmt:'larga' },
+  { cats:AV, ph:/^NOMBRE DEL DOCUMENTO$/, k:'docAceptado' }, { cats:AV, dot:/^versión: ?$/, k:'docVersion' }, { cats:AV, dot:/folio: ?$/, k:'proyecto' },
+  { cats:AV, dot:/^empresa: ?$/, k:'bEmpresa' }, { cats:AV, dot:/verificado: ?$/, k:'bContacto' }, { cats:AV, dot:/fecha y hora: ?$/, k:'fechaHora' },
+  { cats:AV, ph:/^CORREO \/ WHATSAPP/, k:'medioAceptacion' }
+];
+const LG_MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+const lgFechaLarga = s => isYMD(s) ? (d => `${d.getDate()} de ${LG_MESES[d.getMonth()]} de ${d.getFullYear()}`)(parseYMD(s)) : String(s || '');
+function numeroALetras(n) {
+  n = Math.floor(Math.abs(num(n)));
+  const U = ['', 'un', 'dos', 'tres', 'cuatro', 'cinco', 'seis', 'siete', 'ocho', 'nueve', 'diez', 'once', 'doce', 'trece', 'catorce', 'quince', 'dieciséis', 'diecisiete', 'dieciocho', 'diecinueve', 'veinte', 'veintiún', 'veintidós', 'veintitrés', 'veinticuatro', 'veinticinco', 'veintiséis', 'veintisiete', 'veintiocho', 'veintinueve'];
+  const D = ['', '', '', 'treinta', 'cuarenta', 'cincuenta', 'sesenta', 'setenta', 'ochenta', 'noventa'];
+  const C = ['', 'ciento', 'doscientos', 'trescientos', 'cuatrocientos', 'quinientos', 'seiscientos', 'setecientos', 'ochocientos', 'novecientos'];
+  const s99 = x => x < 30 ? U[x] : D[Math.floor(x / 10)] + (x % 10 ? ' y ' + U[x % 10] : '');
+  const s999 = x => x === 100 ? 'cien' : (C[Math.floor(x / 100)] + (x % 100 ? ' ' + s99(x % 100) : '')).trim();
+  if (n === 0) return 'cero';
+  const mill = Math.floor(n / 1e6), miles = Math.floor((n % 1e6) / 1000), rest = n % 1000;
+  return [mill ? (mill === 1 ? 'un millón' : s999(mill) + ' millones') : '', miles ? (miles === 1 ? 'mil' : s999(miles) + ' mil') : '', rest ? s999(rest) : ''].filter(Boolean).join(' ').replace(/\s+/g, ' ');
+}
+const lgMoneyTxt = v => { const n = num(String(v).replace(/[$,\s]/g, '')); return n || n === 0 && String(v).trim() === '0' ? n.toLocaleString('es-MX', { minimumFractionDigits:2, maximumFractionDigits:2 }) : String(v); };
+
+/* Asigna a cada campo detectado un dato del formulario (o un campo propio si no hay regla) */
+function legalMapFields(cat, occ) {
+  const cnt = {};
+  return occ.map(o => {
+    if (o.type !== 'chk') {
+      for (let r = 0; r < LGF_RULES.length; r++) {
+        const R = LGF_RULES[r];
+        if (R.cats && !R.cats.includes(cat)) continue;
+        if (R.ph && (o.type !== 'ph' || !R.ph.test(o.inner))) continue;
+        if (R.dot && (o.type !== 'dot' || !R.dot.test(o.b))) continue;
+        if (R.b && !R.b.test(o.b)) continue;
+        if (R.a && !R.a.test(o.a)) continue;
+        if (R.sec && !R.sec.test(o.section)) continue;
+        cnt[r] = (cnt[r] || 0) + 1;
+        const k = R.keys ? R.keys[Math.min(cnt[r], R.keys.length) - 1] : R.k;
+        return { ...o, key: k, fmt: R.fmt || '' };
+      }
+    }
+    if (o.type === 'ph') return { ...o, key: 'g:' + o.inner };
+    return { ...o, key: `g:${o.type}${o.idx}` };
+  });
+}
+function legalGenericLabel(o) {
+  if (o.type === 'chk') return (o.a.replace(/^[\s:.-]+/, '') || o.b).replace(/^./, c => c.toUpperCase()).slice(0, 120);
+  if (o.type === 'ph') { const s = o.inner.replace(/\s*\/\s*/g, ' / '); return s === s.toUpperCase() ? s.charAt(0) + s.slice(1).toLowerCase() : s; }
+  let lb = o.b.replace(/[,;(]\s*$/, '').trim().split(' ').slice(-6).join(' ').replace(/^[,.;:)\s]+/, '');
+  if (!/[a-záéíóúñ]/i.test(lb)) lb = o.a.replace(/^[\s,.;:)]+/, '').split(' ').slice(0, 5).join(' ');
+  return (lb || 'Dato').replace(/[:$]+\s*$/, '').replace(/^./, c => c.toUpperCase());
+}
+const legalPhOpts = inner => inner.includes('/') && !inner.includes('●') && inner.length < 90 ? inner.split('/').map(s => s.trim()).filter(s => s && s.length < 45) : null;
+
+/* Datos que se pueden deducir del proyecto, cliente, cotización y de tu empresa */
+const lgProceso = p => { const x = String(p || '').toLowerCase(); if (!x) return ''; const r = []; if (/router|cnc/.test(x)) r.push('router CNC'); if (/l[aá]ser/.test(x)) r.push('láser'); if (/3d|impres/.test(x)) r.push('impresión 3D'); if (/carpinter/.test(x)) r.push('carpintería'); return r.join(' + ') || x; };
+function legalPrefillVals(ctx) {
+  const { pr, cli, cot } = ctx; const emp = db.settings.legalEmpresa || {};
+  const v = { ...emp };
+  if (!v.aNombre) v.aNombre = db.settings.empresa || '';
+  if (!v.aMarca) v.aMarca = db.settings.empresa || '';
+  if (cli) { v.bNombre = cli.empresa || cli.nombre; v.bRfc = cli.rfc || ''; v.bRepresentante = cli.empresa ? cli.nombre : ''; v.bCorreo = cli.email || ''; v.bEmpresa = cli.empresa || ''; v.bContacto = cli.email || cli.telefono || ''; }
+  if (pr) { v.proyecto = `${pr.nombre} (${pr.folio})`; v.producto = pr.nombre; v.cantidad = pr.cantidad ? String(pr.cantidad) : ''; v.material = pr.materiales || ''; v.proceso = lgProceso(pr.proceso); v.total = pr.importe ? String(pr.importe) : ''; v.entregaFecha = pr.fechaEntrega || ''; v.ocProducto = pr.nombre; v.ocCantidad = v.cantidad; }
+  if (cot) { const t = cotTotals(cot); if (!v.proceso) v.proceso = lgProceso(cot.proceso); v.cotizacion = cot.folio || ''; v.cotFecha = cot.fecha || ''; v.producto = cot.concepto || v.producto; v.total = String(Math.round(t.sub * 100) / 100); v.plazo = cot.entregaDias ? String(cot.entregaDias) : ''; if (!v.cantidad) v.cantidad = String((cot.partidas || []).reduce((s, it) => s + num(it.cant), 0) || ''); }
+  if (v.aNombre && !v.facturarA) v.facturarA = v.aRfc ? `${v.aNombre} / ${v.aRfc}` : v.aNombre;
+  const hoy = today();
+  Object.assign(v, { fechaFirma: hoy, fechaAct: hoy, inicio: hoy, lugarFirma: 'Zapopan', fechaHora: new Date().toLocaleString('es-MX') });
+  if (pr && pr.nombre && !v.docAceptado) v.docAceptado = '';
+  return v;
+}
+/* Cálculos de pagos cuando se dejan vacíos */
+function legalDerived(vals) {
+  const n = k => num(String(vals[k] || '').replace(/[$,\s]/g, ''));
+  const out = {};
+  const total = n('total');
+  if (total) {
+    const iva = vals.iva ? n('iva') : Math.round(total * num(db.settings.iva) / 100 * 100) / 100;
+    const gt = vals.granTotal ? n('granTotal') : total + iva;
+    const ant = vals.anticipoMonto ? n('anticipoMonto') : (n('anticipoPct') ? Math.round(gt * n('anticipoPct')) / 100 : 0);
+    out.iva = String(iva); out.granTotal = String(gt);
+    if (ant) out.anticipoMonto = String(ant);
+    if (ant) out.finiquito = String(Math.round((gt - ant - n('pagoIntermedio')) * 100) / 100);
+  }
+  return out;
+}
+function legalValueFor(f, vals, der) {
+  let v = vals[f.key];
+  if ((v == null || v === '') && der[f.key] != null) v = der[f.key];
+  if (f.type === 'chk') return v ? '[X]' : '[ ]';
+  if (v == null || String(v).trim() === '') return '';
+  v = String(v).trim();
+  const def = LGF[f.key] || {};
+  if (f.fmt === 'dia') return isYMD(v) ? String(parseYMD(v).getDate()) : '';
+  if (f.fmt === 'mes') return isYMD(v) ? LG_MESES[parseYMD(v).getMonth()] : '';
+  if (f.fmt === 'anio') return isYMD(v) ? String(parseYMD(v).getFullYear()) : '';
+  if (f.fmt === 'larga') return lgFechaLarga(v);
+  if (f.fmt === 'letra') return numeroALetras(String(v).replace(/[$,\s]/g, ''));
+  if (def.type === 'money') return lgMoneyTxt(v);
+  if (def.type === 'date') return lgFechaLarga(v);
+  return v;
+}
+function legalFill(text, fields, vals) {
+  const der = legalDerived(vals); let i = 0;
+  return String(text || '').replace(LG_RE, raw => { const f = fields[i++]; if (!f) return raw; const v = legalValueFor(f, vals, der); return v || raw; });
+}
+
+/* ---- Interfaz ---- */
+function legalFormModel(tpl) {
+  const fields = legalMapFields(tpl.categoria, legalScan(tpl.contenido));
+  const used = new Set(fields.map(f => f.key));
+  const secs = (LGF_SECTIONS[tpl.categoria] || []).map(([t, ks]) => [t, ks.filter(k => used.has(k))]).filter(s => s[1].length);
+  const known = new Set(secs.flatMap(s => s[1]));
+  const extraKeys = Object.keys(LGF).filter(k => used.has(k) && !known.has(k));
+  if (extraKeys.length) secs.push(['Otros datos', extraKeys]);
+  const generic = []; const gseen = new Set();
+  fields.forEach(f => { if (f.key.startsWith('g:') && !gseen.has(f.key)) { gseen.add(f.key); generic.push(f); } });
+  return { fields, secs, generic };
+}
+function lgInput(k, def, val, extra = {}) {
+  const id = 'lgk_' + k.replace(/[^\w]/g, '_') + (extra.n || '');
+  const dl = def.opts ? `<datalist id="${id}_dl">${def.opts.map(o => `<option value="${esc(o)}">`).join('')}</datalist>` : '';
+  const type = def.type === 'date' ? 'date' : def.type === 'email' ? 'email' : def.type === 'tel' ? 'tel' : 'text';
+  const im = def.type === 'money' || def.type === 'number' ? ' inputmode="decimal"' : '';
+  return `<label class="block ${def.full ? 'sm:col-span-2' : ''}"><span class="lbl">${esc(def.l)}</span><input id="${id}" class="inp" type="${type}"${im} data-lgk="${esc(k)}" value="${esc(val == null ? '' : val)}" placeholder="${esc(def.ph || '')}"${dl ? ` list="${id}_dl"` : ''}>${dl}${extra.hint ? `<span class="block text-[11px] text-slate-400 mt-0.5 truncate" title="${esc(extra.hint)}">${esc(extra.hint)}</span>` : ''}</label>`;
+}
+function openLegalGenerate(tplId, docId) {
+  const tpl = getRec('legal', tplId); if (!tpl) { toast('No se encontró la plantilla', 'error'); return; }
+  const doc = docId ? getRec('legal', docId) : null;
+  const M = legalFormModel(tpl);
   const ps = list('proyectos').filter(p => p.etapa !== 'Cancelado').sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
   const cs = list('clientes').sort((a, b) => String(a.nombre).localeCompare(String(b.nombre)));
-  formCtx = null; ui.legGen = { id };
-  openModal(`${modalHead('Generar documento', `${d.titulo} · ${ph.length} campos`)}
-  <div class="modal-body space-y-4">
-    <div class="grid sm:grid-cols-2 gap-3">
-      <label class="block"><span class="lbl">Proyecto (opcional)</span><select id="lg_proj" class="inp" data-lg-ctx="1"><option value="">— Ninguno —</option>${ps.map(p => `<option value="${p.id}">${esc(p.folio)} · ${esc(p.nombre)}</option>`).join('')}</select></label>
-      <label class="block"><span class="lbl">Cliente / otra parte (opcional)</span><select id="lg_cli" class="inp" data-lg-ctx="1"><option value="">— Ninguno —</option>${cs.map(c => `<option value="${c.id}">${esc(c.nombre)}${c.empresa ? ' · ' + esc(c.empresa) : ''}</option>`).join('')}</select></label>
+  const cots = list('cotizaciones').sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  const saved = doc && doc.formData ? doc.formData : null;
+  const ctx0 = saved ? saved.ctx || {} : {};
+  const vals = saved ? { ...saved.vals } : { ...legalPrefillVals({}), ...Object.fromEntries(Object.entries(LGF).filter(([, d]) => d.def).map(([k, d]) => [k, d.def])) };
+  if (!saved) M.generic.forEach(f => { if (f.type === 'ph' && /^\d+$/.test(f.inner)) vals[f.key] = f.inner; });
+  const isCli = tpl.categoria === 'Contratos con clientes', isProv = tpl.categoria === 'Proveedores y subcontratistas';
+  const heading = isCli ? 'Datos del contrato con cliente' : isProv ? 'Datos del acuerdo con proveedor' : `Datos para ${tpl.categoria.toLowerCase()}`;
+  formCtx = null; ui.legGen = { tplId, docId: doc ? doc.id : null, M };
+  const genBySec = {}; M.generic.forEach(f => (genBySec[f.section] = genBySec[f.section] || []).push(f));
+  const total = M.fields.length;
+  openModal(`${modalHead(doc ? 'Editar datos del documento' : 'Formulario de llenado', `${tpl.titulo} · ${total} campo(s) en el machote`)}
+  <div class="modal-body space-y-4" id="lgForm">
+    <div class="rounded-xl bg-slate-50 border border-slate-200 p-3 text-[12.5px] text-slate-600"><b class="text-slate-800">${esc(heading)}.</b> Captura los datos y el sistema los colocará en cada campo del machote. Elige proyecto, cliente o cotización para llenar lo que se pueda deducir. Lo que dejes vacío conservará su marca entre corchetes ([●]) para completarlo después.</div>
+    <div class="grid sm:grid-cols-3 gap-3">
+      <label class="block"><span class="lbl">Proyecto</span><select id="lg_proj" class="inp" data-lg-ctx="1"><option value="">— Ninguno —</option>${ps.map(p => `<option value="${p.id}" ${ctx0.proyectoId === p.id ? 'selected' : ''}>${esc(p.folio)} · ${esc(p.nombre)}</option>`).join('')}</select></label>
+      <label class="block"><span class="lbl">${isProv ? 'Proveedor (cliente registrado)' : 'Cliente / otra parte'}</span><select id="lg_cli" class="inp" data-lg-ctx="1"><option value="">— Ninguno —</option>${cs.map(c => `<option value="${c.id}" ${ctx0.clienteId === c.id ? 'selected' : ''}>${esc(c.nombre)}${c.empresa ? ' · ' + esc(c.empresa) : ''}</option>`).join('')}</select></label>
+      <label class="block"><span class="lbl">Cotización</span><select id="lg_cot" class="inp" data-lg-ctx="1"><option value="">— Ninguna —</option>${cots.map(c => `<option value="${c.id}" ${ctx0.cotizacionId === c.id ? 'selected' : ''}>${esc(c.folio || '')} · ${esc(String(c.concepto || '').slice(0, 50))}</option>`).join('')}</select></label>
     </div>
-    <div class="text-[12px] text-slate-500">Al elegir proyecto o cliente se llenan los campos que se pueden deducir. Revisa y completa el resto; los vacíos quedan entre corchetes en el documento.</div>
-    <div class="grid sm:grid-cols-2 gap-3" id="lgFields">${ph.map((p, i) => `<label class="block"><span class="lbl">${esc(p.slice(1, -1))}</span><input class="inp" data-ph="${i}" placeholder="${esc(p)}"></label>`).join('')}</div>
+    <div class="grid sm:grid-cols-3 gap-3">
+      <label class="block sm:col-span-2"><span class="lbl">Título del documento</span><input id="lg_titulo" class="inp" value="${esc(doc ? doc.titulo : '')}" placeholder="${esc(tpl.categoria)} — nombre de la otra parte"></label>
+      <label class="block"><span class="lbl">Estado</span><select id="lg_estado" class="inp">${LEGAL_ESTADOS.map(e => `<option ${(doc ? doc.estado : 'Borrador') === e ? 'selected' : ''}>${e}</option>`).join('')}</select></label>
+    </div>
+    ${M.secs.map(([t, ks]) => `<fieldset class="rounded-xl border border-slate-200 p-3"><legend class="px-1 text-[12px] font-bold tracking-wide text-brand-600 uppercase">${esc(t)}</legend><div class="grid sm:grid-cols-2 gap-3">${ks.map(k => lgInput(k, LGF[k], vals[k])).join('')}</div></fieldset>`).join('')}
+    ${M.generic.length ? `<details class="rounded-xl border border-slate-200 p-3" ${M.secs.length ? '' : 'open'}><summary class="cursor-pointer text-sm font-bold">Otros campos del machote <span class="font-normal text-slate-500">(${M.generic.length}, por cláusula)</span></summary>
+      <div class="mt-3 space-y-4">${Object.entries(genBySec).map(([sec, fs]) => `<div><div class="text-[11px] font-bold text-slate-500 mb-1.5">${esc(sec)}</div><div class="grid sm:grid-cols-2 gap-3">${fs.map(f => f.type === 'chk'
+        ? `<label class="flex items-start gap-2 text-sm sm:col-span-2"><input type="checkbox" class="mt-1" data-lgk="${esc(f.key)}" ${vals[f.key] ? 'checked' : ''}><span>${esc(legalGenericLabel(f))}</span></label>`
+        : lgInput(f.key, { l: legalGenericLabel(f), opts: f.type === 'ph' ? legalPhOpts(f.inner) : null }, vals[f.key], { hint: f.ctx, n: f.idx })).join('')}</div></div>`).join('')}</div></details>` : ''}
+    <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="lg_recordar" checked>Recordar los datos de mi empresa (nombre legal, RFC, domicilio, representante, correo y teléfono) para los próximos documentos</label>
+    <div class="flex items-center gap-3 flex-wrap"><button class="btn btn-sm" data-act="legal-gen-preview">${ic('eye')}Vista previa</button><span id="lgCount" class="text-[12px] text-slate-500"></span></div>
+    <div id="lgPreview"></div>
   </div>
-  <div class="modal-foot"><button class="btn" data-act="legal-view" data-id="${d.id}">Cancelar</button><button class="btn btn-primary" data-act="legal-gen-go">${ic('file-check')}Crear documento</button></div>`, 'xl');
-  window.__lgPh = ph;
-  legalGenFill();
+  <div class="modal-foot"><button class="btn" data-act="legal-view" data-id="${doc ? doc.id : tpl.id}">Cancelar</button><button class="btn btn-primary" data-act="legal-gen-go">${ic('file-check')}${doc ? 'Actualizar documento' : 'Crear documento'}</button></div>`, 'xl');
+  legalGenCount();
+}
+function legalGenVals() {
+  const v = {};
+  $$('#lgForm [data-lgk]').forEach(i => { v[i.dataset.lgk] = i.type === 'checkbox' ? i.checked : i.value; });
+  return v;
+}
+function legalGenCtx() {
+  const pr = getRec('proyectos', ($('#lg_proj') || {}).value); let cli = getRec('clientes', ($('#lg_cli') || {}).value); let cot = getRec('cotizaciones', ($('#lg_cot') || {}).value);
+  if (!cot && pr && pr.cotizacionId) { cot = getRec('cotizaciones', pr.cotizacionId); if (cot && $('#lg_cot')) $('#lg_cot').value = cot.id; }
+  if (!cli && (pr || cot)) { cli = getRec('clientes', (pr && pr.clienteId) || (cot && cot.clienteId)); if (cli && $('#lg_cli')) $('#lg_cli').value = cli.id; }
+  return { pr, cli, cot };
 }
 function legalGenFill() {
-  const pr = getRec('proyectos', ($('#lg_proj') || {}).value); let cli = getRec('clientes', ($('#lg_cli') || {}).value);
-  if (!cli && pr && pr.clienteId) { cli = getRec('clientes', pr.clienteId); if (cli && $('#lg_cli')) $('#lg_cli').value = cli.id; }
-  $$('#lgFields [data-ph]').forEach(inp => { const v = legalPrefill(window.__lgPh[+inp.dataset.ph], { proyecto: pr, cliente: cli }); if (v && !inp.dataset.touched) inp.value = v; });
+  const ctx = legalGenCtx(); const pv = legalPrefillVals(ctx);
+  $$('#lgForm input[data-lgk]').forEach(i => { if (i.type === 'checkbox' || i.dataset.touched) return; const v = pv[i.dataset.lgk]; if (v) i.value = v; });
+  legalGenCount();
+}
+function legalGenCount() {
+  const G = ui.legGen; if (!G || !$('#lgCount')) return;
+  const vals = legalGenVals(), der = legalDerived(vals);
+  const fill = G.M.fields.filter(f => f.type !== 'chk').filter(f => legalValueFor(f, vals, der)).length;
+  const tot = G.M.fields.filter(f => f.type !== 'chk').length;
+  $('#lgCount').textContent = `${fill} de ${tot} campos del machote quedarán llenos`;
+  const tip = { iva:der.iva, granTotal:der.granTotal, anticipoMonto:der.anticipoMonto, finiquito:der.finiquito };
+  Object.entries(tip).forEach(([k, v]) => { const i = $(`#lgForm input[data-lgk="${k}"]`); if (i) i.placeholder = v ? 'Auto: $' + lgMoneyTxt(v) : ''; });
+}
+function legalGenPreview() {
+  const G = ui.legGen; const tpl = getRec('legal', G && G.tplId); if (!tpl) return;
+  const txt = legalFill(tpl.contenido, G.M.fields, legalGenVals());
+  $('#lgPreview').innerHTML = `<div class="rounded-xl border border-slate-200 bg-white p-4 max-h-[50vh] overflow-y-auto text-[13px] leading-relaxed whitespace-pre-wrap font-serif">${legalHighlight(txt)}</div><div class="text-[11px] text-slate-500 mt-1">Resaltado: campos que siguen pendientes.</div>`;
 }
 function legalGenGo() {
-  const d = getRec('legal', ui.legGen && ui.legGen.id); if (!d) return;
-  let txt = d.contenido;
-  $$('#lgFields [data-ph]').forEach(inp => { const v = inp.value.trim(); if (v) txt = txt.split(window.__lgPh[+inp.dataset.ph]).join(v); });
-  const pr = getRec('proyectos', $('#lg_proj').value), cli = getRec('clientes', $('#lg_cli').value);
-  const quien = (cli && (cli.empresa || cli.nombre)) || (pr && pr.nombre) || 'sin vincular';
-  const nid = upsert('legal', { titulo: `${d.categoria} — ${quien}`, categoria: d.categoria, tipo:'Documento generado', estado:'Borrador', version:'1.0', responsable: db.settings.usuario || '', proyectoId: pr ? pr.id : '', clienteId: cli ? cli.id : '', contenido: txt, plantilla:false, origen:`Generado desde "${d.titulo}" v${d.version || '1.0'}`, adjuntos:[], bitacora:[{ texto:`Generado desde plantilla ${d.titulo}`, at:Date.now(), device:deviceLabel() }] }, { silent:true });
-  if (pr) upsert('proyectos', { id: pr.id, bitacora:[...(pr.bitacora || []), { texto:`Documento legal generado: ${d.categoria}`, at:Date.now(), device:deviceLabel() }] }, { silent:true });
-  render(); toast('Documento generado', 'ok'); openLegalView(nid);
+  const G = ui.legGen; const tpl = getRec('legal', G && G.tplId); if (!tpl) return;
+  const vals = legalGenVals(); const { pr, cli, cot } = legalGenCtx();
+  const txt = legalFill(tpl.contenido, G.M.fields, vals);
+  if ($('#lg_recordar') && $('#lg_recordar').checked) {
+    const keep = ['aNombre', 'aTipo', 'aMarca', 'aRfc', 'aDomicilio', 'aRepresentante', 'aCorreo', 'aTel', 'cuentaPago', 'avisoPrivacidad', 'arco'];
+    const emp = { ...(db.settings.legalEmpresa || {}) }; let ch = false;
+    keep.forEach(k => { if (vals[k] != null && String(vals[k]).trim() && emp[k] !== vals[k]) { emp[k] = String(vals[k]).trim(); ch = true; } });
+    if (ch) updateSettings({ legalEmpresa: emp });
+  }
+  const otra = (vals.bNombre || '').trim() || (cli && (cli.empresa || cli.nombre)) || (pr && pr.nombre) || 'sin vincular';
+  const titulo = ($('#lg_titulo').value || '').trim() || `${tpl.categoria} — ${otra}`;
+  const estado = $('#lg_estado').value || 'Borrador';
+  const formData = { tplId: tpl.id, tplVersion: tpl.version || '1.0', ctx: { proyectoId: pr ? pr.id : '', clienteId: cli ? cli.id : '', cotizacionId: cot ? cot.id : '' }, vals, at: Date.now() };
+  const pend = legalScan(txt).filter(o => o.type !== 'chk').length;
+  const doc = G.docId ? getRec('legal', G.docId) : null;
+  let nid;
+  if (doc) {
+    nid = upsert('legal', { id: doc.id, titulo, estado, contenido: txt, formData, proyectoId: pr ? pr.id : doc.proyectoId || '', clienteId: cli ? cli.id : doc.clienteId || '', bitacora:[...(doc.bitacora || []), { texto:`Datos del formulario actualizados (${pend} campo(s) pendientes)`, at:Date.now(), device:deviceLabel() }] }, { silent:true });
+  } else {
+    nid = upsert('legal', { titulo, categoria: tpl.categoria, tipo:'Documento generado', estado, version:'1.0', responsable: db.settings.usuario || '', proyectoId: pr ? pr.id : '', clienteId: cli ? cli.id : '', vinculo: cli ? '' : (vals.bNombre || ''), contenido: txt, plantilla:false, formData, origen:`Generado desde "${tpl.titulo}" v${tpl.version || '1.0'}`, adjuntos:[], bitacora:[{ texto:`Generado con formulario de llenado desde ${tpl.titulo} (${pend} campo(s) pendientes)`, at:Date.now(), device:deviceLabel() }] }, { silent:true });
+    if (pr) upsert('proyectos', { id: pr.id, bitacora:[...(pr.bitacora || []), { texto:`Documento legal generado: ${tpl.categoria}`, at:Date.now(), device:deviceLabel() }] }, { silent:true });
+  }
+  render(); toast(doc ? 'Documento actualizado' : (pend ? `Documento generado · ${pend} campo(s) por completar` : 'Documento generado completo'), 'ok', 4500); openLegalView(nid);
 }
+
 function legalHtml(d) {
   return `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>${esc(d.titulo)}</title><style>body{font-family:Georgia,'Times New Roman',serif;margin:28mm 22mm;color:#111;font-size:11.5pt;line-height:1.55}pre{white-space:pre-wrap;font-family:inherit;margin:0}.meta{font-family:Arial,sans-serif;font-size:9pt;color:#666;border-bottom:1px solid #ccc;padding-bottom:6px;margin-bottom:18px}@media print{button{display:none}body{margin:18mm}}</style></head><body><div class="meta">${esc(db.settings.empresa || '')} · ${esc(d.categoria)} · v${esc(d.version || '1.0')} · ${esc(d.estado)}</div><pre>${esc(d.contenido)}</pre></body></html>`;
 }
@@ -2540,6 +2879,8 @@ Object.assign(H, {
   'legal-dup': el => { const d = getRec('legal', el.dataset.id); if (!d) return; const v = String(d.version || '1.0').split('.'); const nv = `${v[0]}.${(parseInt(v[1] || '0', 10) || 0) + 1}`; const { id, createdAt, updatedAt, adjuntos, bitacora, ...rest } = d; const nid = upsert('legal', { ...rest, version: nv, estado:'Borrador', titulo: d.titulo.replace(/\s*\(v[\d.]+\)$/, '') + ` (v${nv})`, origen:`Copia de "${d.titulo}" v${d.version || '1.0'}`, adjuntos:[], bitacora:[{ texto:`Creado como nueva versión de ${d.titulo}`, at:Date.now(), device:deviceLabel() }] }, { silent:true }); render(); toast(`Versión ${nv} creada`, 'ok'); openLegalForm(nid); },
   'legal-generate': el => openLegalGenerate(el.dataset.id),
   'legal-gen-go': () => legalGenGo(),
+  'legal-gen-preview': () => legalGenPreview(),
+  'legal-regen': el => { const d = getRec('legal', el.dataset.id); if (d && d.formData) openLegalGenerate(d.formData.tplId, d.id); },
   'legal-print': el => { const d = getRec('legal', el.dataset.id); if (!d) return; const w = window.open('', '_blank'); if (!w) { toast('Permite ventanas emergentes', 'error'); return; } w.document.write(legalHtml(d).replace('</body>', '<script>setTimeout(function(){print()},300)<\/script></body>')); w.document.close(); },
   'legal-word': el => { const d = getRec('legal', el.dataset.id); if (!d) return; download(`${d.titulo.replace(/[\\/:*?"<>|]+/g, '-').slice(0, 80)}.doc`, '﻿' + legalHtml(d), 'application/msword'); },
   'legal-gen-proj': el => { const t = legalTemplateOf('Contratos con clientes'); if (!t) { toast('No hay plantilla de contrato con clientes. Importa la del sistema anterior o crea una en Legal.', 'error', 5000); return; } const pid = el.dataset.id; openLegalGenerate(t.id); const s = $('#lg_proj'); if (s) { s.value = pid; legalGenFill(); } },
@@ -2560,7 +2901,7 @@ document.addEventListener('input', e => {
   if (t.dataset.q) { ui.q[t.dataset.q] = t.value; render(); return; }
   if (t.closest('#itemsRows') || t.id === 'fld_conIVA') updateItemsTotals();
   if (t.dataset.calc) calcQuick();
-  if (t.dataset.ph != null && t.closest('#lgFields')) t.dataset.touched = '1';
+  if (t.dataset.lgk != null && t.closest('#lgForm')) { t.dataset.touched = '1'; legalGenCount(); if ($('#lgPreview') && $('#lgPreview').innerHTML) legalGenPreview(); }
   if (t.dataset.expAvance) { const lbl = $('#exp_av_txt'); if (lbl) lbl.textContent = t.value + '%'; }
 });
 document.addEventListener('change', e => {
@@ -2579,6 +2920,7 @@ document.addEventListener('change', e => {
   if (t.dataset.hjTipo) { const p = getRec('hjPedidos', t.dataset.hjTipo); if (p && p.tipo !== t.value) { upsert('hjPedidos', { id:p.id, tipo:t.value, bitacora: hjLog(p, `Tipo: ${hjTipoLabel(p.tipo)} → ${hjTipoLabel(t.value)}`) }, { silent:true }); render(); openHJ(p.id); } return; }
   if (t.dataset.hjPrio) { const p = getRec('hjPedidos', t.dataset.hjPrio); if (p) { upsert('hjPedidos', { id:p.id, prioridad:t.value, bitacora: hjLog(p, `Prioridad: ${t.value}`) }, { silent:true }); render(); openHJ(p.id); } return; }
   if (t.dataset.lgCtx) { legalGenFill(); return; }
+  if (t.dataset.lgk != null && t.type === 'checkbox') { legalGenCount(); return; }
   if (t.dataset.disTarget) { ui.disTarget = t.value; render(); return; }
   if (t.id === 'disFileInput' && t.files.length) { const T = disParseTarget(); if (T) disAttach(T, Array.from(t.files), `Archivo de ${(disTool(ui.disTool) || { name:'diseño' }).name}`); return; }
   if (t.id === 'restoreInput' && t.files[0]) restoreFromFile(t.files[0]);
