@@ -123,7 +123,7 @@
    Alcance: drive.file (la app solo ve los archivos que ella misma crea)
    ========================================================================= */
 
-const APP_VERSION = '1.1.0';
+const APP_VERSION = '1.2.0';
 const KEYS = { db:'ccmx_db_v1', sync:'ccmx_sync_v1', cfg:'ccmx_cfg_v1', token:'ccmx_token_v1', ui:'ccmx_ui_v1', device:'ccmx_device_v1' };
 const DRIVE = 'https://www.googleapis.com/drive/v3';
 const UPLOAD = 'https://www.googleapis.com/upload/drive/v3';
@@ -717,7 +717,14 @@ function render() {
   const focusId = active && active.id && $('#main').contains(active) ? active.id : null;
   const caret = focusId && typeof active.selectionStart === 'number' ? active.selectionStart : null;
   renderSidebar(); renderTopbar(); renderBottomNav();
-  $('#main').innerHTML = PAGES[ui.route]();
+  const html = PAGES[ui.route]();
+  const simWrap = $('#hjSimFrameWrap');
+  if (simWrap && html.includes('id="hjSimFrameWrap"')) {
+    /* conserva el iframe del simulador (no se recarga ni pierde el diseño) */
+    const tmp = document.createElement('div'); tmp.innerHTML = html;
+    Array.from($('#main').children).forEach(ch => { if (ch !== simWrap) ch.remove(); });
+    Array.from(tmp.children).filter(c => c.id !== 'hjSimFrameWrap').reverse().forEach(c => $('#main').prepend(c));
+  } else $('#main').innerHTML = html;
   if (focusId) { const el = document.getElementById(focusId); if (el) { el.focus(); if (caret != null && el.setSelectionRange) { try { el.setSelectionRange(caret, caret); } catch (e) {} } } }
   icons();
   const t = NAV.find(x => x.id === ui.route);
@@ -1928,14 +1935,71 @@ function hjSetEst(path, value) {
 /* ---- Página ---- */
 PAGES.hebillas = () => {
   const tab = ui.hjTab || 'pedidos';
-  const tabs = [['pedidos', 'Pedidos', 'package'], ['estimacion', 'Estimación por lote', 'calculator'], ['productividad', 'Productividad diaria', 'timer'], ['informes', 'Informes cada ' + (num(hjS().meta) || 800), 'file-check']];
+  const tabs = [['pedidos', 'Pedidos', 'package'], ['estimacion', 'Estimación por lote', 'calculator'], ['productividad', 'Productividad diaria', 'timer'], ['informes', 'Informes cada ' + (num(hjS().meta) || 800), 'file-check'], ['simulador', 'Simulador de grabado (anexo)', 'pen-tool']];
   return `<div class="space-y-4">
     <div class="flex items-end justify-between gap-3 flex-wrap"><div><div class="text-[11px] font-bold tracking-widest text-brand-600">PRODUCCIÓN RECURRENTE</div><h1 class="text-2xl font-extrabold">Hebillas JA</h1><p class="text-sm text-slate-500">Pedidos, aprobaciones, producción, entregas e informes.</p></div>
       <div class="flex gap-2 flex-wrap"><button class="btn" data-act="hj-config">${ic('settings')}Contacto</button><button class="btn btn-primary" data-act="hj-new">${ic('plus')}Nueva solicitud</button></div></div>
     <div class="scroll-x"><div class="flex gap-2 min-w-max">${tabs.map(([id, l, i]) => `<button class="btn btn-sm ${tab === id ? 'btn-dark' : ''}" data-act="hj-tab" data-v="${id}">${ic(i)}${l}</button>`).join('')}</div></div>
-    ${tab === 'pedidos' ? hjPedidosView() : tab === 'estimacion' ? hjEstimacionView() : tab === 'productividad' ? hjProductividadView() : hjInformesView()}
-  </div>`;
+    ${tab === 'pedidos' ? hjPedidosView() : tab === 'estimacion' ? hjEstimacionView() : tab === 'productividad' ? hjProductividadView() : tab === 'informes' ? hjInformesView() : hjSimuladorTop()}
+  </div>${tab === 'simulador' ? hjSimuladorFrame() : ''}`;
 };
+/* ---- Anexo: simulador de grabado láser ---- */
+const simApi = () => { const f = $('#simFrame'); try { return f && f.contentWindow && f.contentWindow.LSIM && f.contentWindow.LSIM.ready ? f.contentWindow.LSIM : null; } catch (e) { return null; } };
+function hjSimuladorTop() {
+  const ps = list('hjPedidos').filter(p => p.etapa !== 'Cancelado').sort((a, b) => (hjDone(a) - hjDone(b)) || String(b.creado || '').localeCompare(String(a.creado || '')));
+  const sel = ui.hjSimPed && getRec('hjPedidos', ui.hjSimPed) ? ui.hjSimPed : '';
+  const p = getRec('hjPedidos', sel);
+  return `<div class="card space-y-3">
+    <div class="flex flex-wrap gap-2 items-end">
+      <label class="block flex-1 min-w-[240px]"><span class="lbl">Pedido al que se anexa la simulación</span><select id="hjSimPed" class="inp" data-hj-simped="1"><option value="">— Elige un pedido —</option>${ps.map(x => `<option value="${x.id}" ${x.id === sel ? 'selected' : ''}>${esc(x.folio)} · ${esc(x.titulo)} · ${num(x.cantidad)} ${esc(hjTipoLabel(x.tipo).toLowerCase())}${hjDone(x) ? ' (entregado)' : ''}</option>`).join('')}</select></label>
+      <button class="btn" data-act="hj-sim-fill" ${sel ? '' : 'disabled'}>${ic('clipboard-paste')}Cargar datos del pedido en la ficha</button>
+      <button class="btn btn-primary" data-act="hj-sim-png" ${sel ? '' : 'disabled'}>${ic('image')}Anexar vista previa (PNG)</button>
+      <button class="btn btn-dark" data-act="hj-sim-dxf" ${sel ? '' : 'disabled'}>${ic('file-down')}Anexar producción (DXF + SVG)</button>
+      <a class="btn" href="simulador.html" target="_blank" rel="noopener">${ic('external-link')}Pestaña nueva</a>
+    </div>
+    <div class="text-[12px] text-slate-500">Diseña el grabado abajo (tapa exterior, interior y frentes). Al anexar, la imagen y los archivos de producción se guardan en la carpeta <b>Adjuntos</b> de Drive y quedan en el expediente del pedido junto con el resumen técnico (zonas, medidas y área de grabado). ${Sync.hasToken() ? '' : '<b class="text-red-600">Drive no está conectado: los archivos se descargarán a este dispositivo y solo el resumen quedará en el pedido.</b>'}</div>
+    ${p && (p.anexos || []).length ? `<div class="text-[12px] text-slate-600">Este pedido ya tiene ${(p.anexos || []).length} anexo(s) de grabado: ${(p.anexos || []).slice(-3).map(a => a.link ? `<a class="text-brand-700 underline" href="${esc(a.link)}" target="_blank" rel="noopener">${esc(a.name)}</a>` : esc(a.name)).join(' · ')}</div>` : ''}
+  </div>`;
+}
+function hjSimuladorFrame() {
+  return `<div id="hjSimFrameWrap" class="mt-4 card !p-0 overflow-hidden"><iframe id="simFrame" src="simulador.html" title="Simulador de grabado láser Hebillas" class="w-full block" style="height:max(1250px,150vh);border:0"></iframe></div>`;
+}
+async function hjSimAnexar(kind) {
+  const p = getRec('hjPedidos', ui.hjSimPed); if (!p) { toast('Elige el pedido', 'error'); return; }
+  const L = simApi(); if (!L) { toast('El simulador aún está cargando. Intenta en unos segundos.', 'error'); return; }
+  const n = new Date(); const stamp = `${ymd(n).replace(/-/g, '')}-${pad(n.getHours())}${pad(n.getMinutes())}`;
+  let files = [], resumen = '';
+  try {
+    resumen = String(L.summary() || '').replace(/\*/g, '');
+    if (kind === 'png') {
+      const c = await L.previewCanvas();
+      const blob = await new Promise(r => c.toBlob(r, 'image/png'));
+      files.push(new File([blob], `${p.folio}_simulacion_${stamp}.png`, { type:'image/png' }));
+    } else {
+      toast('Vectorizando y generando DXF…');
+      const out = await L.produccion('cm', 0.1);
+      if (!out) { toast('No hay zonas con diseño para exportar', 'error'); return; }
+      files.push(new File([out.dxf], `${p.folio}_grabado_${out.zones.join('')}_${stamp}.dxf`, { type:'application/dxf' }));
+      files.push(new File([out.svg], `${p.folio}_grabado_${out.zones.join('')}_${stamp}.svg`, { type:'image/svg+xml' }));
+      resumen += `\nArchivo de producción: zonas ${out.zones.join(', ')} · lámina ${(out.W / 10).toFixed(1)} × ${(out.H / 10).toFixed(1)} cm (DXF en cm). Revisar en LightBurn/RDWorks antes de producir.`;
+    }
+  } catch (e) { console.error(e); toast('No se pudo generar el archivo del simulador', 'error'); return; }
+  const anexos = [...(p.anexos || [])]; const adjuntos = [...(p.adjuntos || [])];
+  for (const f of files) {
+    let meta = null;
+    if (Sync.hasToken()) {
+      try { Sync.setStatus('saving', 'Subiendo anexo…'); meta = await Sync.uploadFile(f, { description: `Simulación de grabado · ${p.folio} ${p.titulo}` }); adjuntos.push(meta); }
+      catch (e) { toast(`No se pudo subir ${f.name}: ${e.message}`, 'error', 5000); }
+    }
+    if (!meta) download(f.name, f, f.type);
+    anexos.push({ tipo: kind === 'png' ? 'Vista previa' : (f.name.endsWith('.dxf') ? 'Producción DXF' : 'Producción SVG'), name: f.name, link: meta ? meta.link : '', fileId: meta ? meta.fileId : '', resumen, at: Date.now() });
+  }
+  const cur = getRec('hjPedidos', p.id);
+  const patch = { id: p.id, anexos, adjuntos, bitacora: hjLog(cur, `Anexo de grabado: ${files.map(f => f.name).join(', ')}${adjuntos.length > (cur.adjuntos || []).length ? ' (en Drive)' : ' (descargado localmente)'}`) };
+  if (kind === 'png' && hjStepIdx(cur) < 1) patch.notas = cur.notas || '';
+  upsert('hjPedidos', patch, { silent:true });
+  render(); toast(kind === 'png' ? 'Vista previa anexada al pedido' : 'Archivos de producción anexados al pedido', 'ok');
+}
 function hjStepsMini(p) {
   const i = hjStepIdx(p);
   return `<div class="flex gap-0.5 mt-1">${['Cortado', 'Grabado', 'Espuma lista', 'Empacado'].map(s => `<span class="h-1.5 flex-1 rounded" style="background:${HJ_ETAPAS.indexOf(s) <= i && p.etapa !== 'Solicitud recibida' ? '#16a34a' : '#e2e8f0'}" title="${s}"></span>`).join('')}</div>`;
@@ -2077,12 +2141,15 @@ function openHJ(id) {
     ${p.notas ? `<div class="rounded-xl bg-amber-50 border border-amber-100 p-3 text-sm whitespace-pre-line">${esc(p.notas)}</div>` : ''}
     <div class="flex flex-wrap gap-2">
       <button class="btn btn-sm" data-act="hj-edit" data-id="${p.id}">${ic('pencil')}Editar datos</button>
+      <button class="btn btn-sm" data-act="hj-sim-open" data-id="${p.id}">${ic('pen-tool')}Abrir simulador de grabado</button>
       <button class="btn btn-sm" data-act="hj-wa" data-id="${p.id}">${ic('message-circle')}Notificar estado por WhatsApp</button>
       ${(p.adjuntos || []).length ? `<button class="btn btn-sm" data-act="hj-wa-diseno" data-id="${p.id}">${ic('image')}Enviar diseño para aprobación</button>` : ''}
       ${p.etapa !== 'Cancelado' ? `<button class="btn btn-sm btn-danger" data-act="hj-etapa" data-id="${p.id}" data-v="Cancelado">${ic('ban')}Cancelar pedido</button>` : `<button class="btn btn-sm" data-act="hj-etapa" data-id="${p.id}" data-v="Solicitud recibida">${ic('rotate-ccw')}Reactivar</button>`}
     </div>
 
     ${attachmentsPanel('hjPedidos', p).replace('Expediente digital · archivos en Drive', '1. Diseños para aprobación y archivos (Drive)')}
+
+    ${(p.anexos || []).length ? `<div><div class="font-bold mb-2">Anexos del simulador de grabado</div><div class="space-y-2">${(p.anexos || []).slice().reverse().map(a => `<details class="rounded-xl border border-slate-200 px-3 py-2"><summary class="cursor-pointer text-sm flex items-center justify-between gap-2"><span class="min-w-0 truncate">${ic(a.tipo === 'Vista previa' ? 'image' : 'file-down', 'w-4 h-4 inline')} <b>${esc(a.tipo)}</b> · ${esc(a.name)}</span><span class="text-[11px] text-slate-500 shrink-0">${fmtDateTime(a.at)}</span></summary>${a.link ? `<a class="text-sm text-brand-700 underline" href="${esc(a.link)}" target="_blank" rel="noopener">Abrir en Drive</a>` : '<div class="text-[12px] text-slate-500">Descargado localmente (sin Drive)</div>'}<pre class="mt-2 text-[12px] whitespace-pre-wrap bg-slate-50 rounded-lg p-2">${esc(a.resumen || '')}</pre></details>`).join('')}</div></div>` : ''}
 
     <div class="grid lg:grid-cols-2 gap-4">
       <div class="rounded-2xl border border-slate-200 p-4 space-y-3"><div class="font-bold">Cantidad y tipo del pedido</div>
@@ -2206,7 +2273,11 @@ Object.assign(H, {
   'hj-inf-close': () => hjCerrarInforme(),
   'hj-inf-print': el => hjInformePrint(el.dataset.n),
   'hj-inf-edit': el => { const r = getRec('hjInformes', el.dataset.id); if (!r) return; openForm({ title:`Informe ${String(r.num).padStart(3, '0')} · factura`, data:r, fields: [ { k:'factura', label:'Folio fiscal de la factura (UUID)', full:true }, { k:'pagada', label:'', type:'checkbox', text:'Factura pagada' }, { k:'cerradoEn', label:'Fecha de cierre', type:'date' } ], onDelete: () => { if (confirm('¿Reabrir este informe? Sus pedidos regresan al informe en curso.')) { removeRec('hjInformes', r.id); closeModal(); } }, onSave: v => { upsert('hjInformes', { id:r.id, ...v }); closeModal(); toast('Informe actualizado', 'ok'); } }); },
-  'print': () => window.print()
+  'print': () => window.print(),
+  'hj-sim-open': el => { ui.hjTab = 'simulador'; ui.hjSimPed = el.dataset.id; closeModal(); if (location.hash !== '#/hebillas') location.hash = '#/hebillas'; else render(); window.scrollTo(0, 0); },
+  'hj-sim-fill': () => { const p = getRec('hjPedidos', ui.hjSimPed); const L = simApi(); if (!p) return; if (!L) { toast('El simulador aún está cargando', 'error'); return; } L.setFicha({ fName: p.solicito || hjS().contacto || '', fCompany: 'Hebillas JA', fPhone: p.telefono || hjS().telefono || '', fQty: num(p.cantidad), fDate: isYMD(p.fechaEntrega) ? fmtDate(p.fechaEntrega) : '', fNotes: `${p.folio} · ${p.titulo}${p.lugar ? ' · ' + p.lugar : ''} · ${hjTipoLabel(p.tipo)}${p.notas ? '\n' + p.notas : ''}` }); },
+  'hj-sim-png': () => hjSimAnexar('png'),
+  'hj-sim-dxf': () => hjSimAnexar('dxf')
 });
 
 
@@ -2236,6 +2307,7 @@ document.addEventListener('change', e => {
     upsert('proyectos', { id:p.id, etapa, avance: etapa === 'Entregado' ? 100 : Math.max(num(p.avance), ETAPA_AVANCE[etapa] || 0), bitacora:[...(p.bitacora || []), { texto:`Etapa: ${p.etapa} → ${etapa}`, at:Date.now(), device:deviceLabel() }] }, { silent:true });
     render(); openExpediente(p.id);
   }
+  if (t.dataset.hjSimped) { ui.hjSimPed = t.value; render(); return; }
   if (t.dataset.hjv) { hjSetEst(t.dataset.hjv, t.type === 'checkbox' ? t.checked : t.value); return; }
   if (t.dataset.hjTipo) { const p = getRec('hjPedidos', t.dataset.hjTipo); if (p && p.tipo !== t.value) { upsert('hjPedidos', { id:p.id, tipo:t.value, bitacora: hjLog(p, `Tipo: ${hjTipoLabel(p.tipo)} → ${hjTipoLabel(t.value)}`) }, { silent:true }); render(); openHJ(p.id); } return; }
   if (t.dataset.hjPrio) { const p = getRec('hjPedidos', t.dataset.hjPrio); if (p) { upsert('hjPedidos', { id:p.id, prioridad:t.value, bitacora: hjLog(p, `Prioridad: ${t.value}`) }, { silent:true }); render(); openHJ(p.id); } return; }
