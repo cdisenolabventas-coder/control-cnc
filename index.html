@@ -124,7 +124,7 @@
    Alcance: drive.file (la app solo ve los archivos que ella misma crea)
    ========================================================================= */
 
-const APP_VERSION = '1.5.0';
+const APP_VERSION = '1.6.0';
 const KEYS = { db:'ccmx_db_v1', sync:'ccmx_sync_v1', cfg:'ccmx_cfg_v1', token:'ccmx_token_v1', ui:'ccmx_ui_v1', device:'ccmx_device_v1' };
 const DRIVE = 'https://www.googleapis.com/drive/v3';
 const UPLOAD = 'https://www.googleapis.com/upload/drive/v3';
@@ -934,7 +934,7 @@ PAGES.ventas = () => {
     <div class="flex flex-wrap gap-2 items-center">${searchBox('ventas', 'Buscar folio, concepto o cliente…')}${selectFilter('cot', 'Estado', COT_ESTADOS)}<button class="btn btn-primary" data-act="new-cotizacion">${ic('plus')}Nueva cotización</button></div>
     <div class="card !p-0 overflow-hidden">${cs.length ? `<div class="scroll-x"><table class="tbl"><thead><tr><th>Folio</th><th>Concepto</th><th class="hidden sm:table-cell">Cliente</th><th>Estado</th><th class="text-right">Total</th><th></th></tr></thead><tbody>
       ${cs.map(c => `<tr class="row-link" data-act="edit-cotizacion" data-id="${c.id}"><td class="whitespace-nowrap"><div class="font-semibold">${esc(c.folio)}</div><div class="text-[11px] text-slate-500">${fmtDate(c.fecha)}</div></td><td class="max-w-[220px]"><div class="truncate">${esc(c.concepto)}</div><div class="sm:hidden text-[11px] text-slate-500 truncate">${esc(clientShort(c))}</div></td><td class="hidden sm:table-cell max-w-[180px] truncate">${esc(clientShort(c))}</td><td>${badge(c.estado, estadoColor(c.estado))}</td><td class="text-right font-semibold whitespace-nowrap">${money(cotTotals(c).total)}</td>
-      <td class="text-right whitespace-nowrap"><button class="btn btn-ghost btn-sm" data-act="cot-print" data-id="${c.id}" title="Imprimir / PDF">${ic('printer')}</button><button class="btn btn-ghost btn-sm" data-act="cot-wa" data-id="${c.id}" title="Enviar por WhatsApp">${ic('message-circle')}</button>${c.proyectoId ? `<button class="btn btn-ghost btn-sm" data-act="open-proyecto" data-id="${c.proyectoId}" title="Ver proyecto">${ic('folder-open')}</button>` : `<button class="btn btn-ghost btn-sm" data-act="cot-convert" data-id="${c.id}" title="Convertir en proyecto">${ic('arrow-right-left')}</button>`}</td></tr>`).join('')}</tbody></table></div>` : emptyState('Sin cotizaciones.', `<button class="btn btn-primary btn-sm" data-act="new-cotizacion">${ic('plus')}Nueva cotización</button>`)}</div>
+      <td class="text-right whitespace-nowrap"><button class="btn btn-ghost btn-sm" data-act="cot-print" data-id="${c.id}" title="Imprimir / PDF">${ic('printer')}</button><button class="btn btn-ghost btn-sm" data-act="cot-wa" data-id="${c.id}" title="Enviar por WhatsApp">${ic('message-circle')}</button>${c.proyectoId ? `<button class="btn btn-ghost btn-sm" data-act="open-proyecto" data-id="${c.proyectoId}" title="Ver proyecto">${ic('folder-open')}</button>` : `<button class="btn btn-ghost btn-sm" data-act="ql-proj" data-id="${c.id}" title="Vincular a proyecto existente">${ic('link')}</button><button class="btn btn-ghost btn-sm" data-act="cot-convert" data-id="${c.id}" title="Convertir en proyecto nuevo">${ic('arrow-right-left')}</button>`}</td></tr>`).join('')}</tbody></table></div>` : emptyState('Sin cotizaciones.', `<button class="btn btn-primary btn-sm" data-act="new-cotizacion">${ic('plus')}Nueva cotización</button>`)}</div>
   </div>`;
 };
 
@@ -1069,7 +1069,7 @@ PAGES.ajustes = () => {
     <section class="card">
       <div class="font-bold text-lg flex items-center gap-2 mb-3">${ic('building-2', 'w-5 h-5')}Empresa y parámetros</div>
       <div class="grid sm:grid-cols-2 gap-3 text-sm">${[['Empresa', db.settings.empresa], ['Usuario', db.settings.usuario], ['IVA', num(db.settings.iva) + '%'], ['Margen objetivo', num(db.settings.margen) + '%'], ['WhatsApp del negocio', db.settings.whatsapp || '—']].map(([l, v]) => `<div class="rounded-xl bg-slate-50 p-3"><div class="text-[11px] text-slate-500">${l}</div><div class="font-semibold">${esc(v)}</div></div>`).join('')}</div>
-      <div class="flex gap-2 mt-3 flex-wrap"><button class="btn btn-sm" data-act="edit-empresa">${ic('pencil')}Editar</button><button class="btn btn-sm" data-act="edit-tarifas">${ic('gauge')}Tarifas de máquina</button></div>
+      <div class="flex gap-2 mt-3 flex-wrap"><button class="btn btn-sm" data-act="edit-empresa">${ic('pencil')}Editar</button><button class="btn btn-sm" data-act="edit-tarifas">${ic('gauge')}Tarifas de máquina</button><button class="btn btn-sm" data-act="edit-papeleria">${ic('stamp')}Papelería y membrete</button><button class="btn btn-sm" data-act="pap-preview">${ic('eye')}Ver membrete</button></div>
     </section>
     <section class="card">
       <div class="font-bold text-lg flex items-center gap-2 mb-3">${ic('smartphone', 'w-5 h-5')}Instalar como app</div>
@@ -1115,6 +1115,12 @@ function fieldHTML(f, v) {
     case 'project': {
       const ps = list('proyectos').filter(p => p.etapa !== 'Cancelado' || p.id === v).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
       ctrl = `<select id="${id}" name="${f.k}" class="inp"><option value="">— Sin proyecto —</option>${ps.map(p => `<option value="${p.id}" ${p.id === v ? 'selected' : ''}>${esc(p.nombre)} (${esc(p.folio)})</option>`).join('')}</select>`; break;
+    }
+    case 'quote': {
+      const qs = list('cotizaciones').sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+      const self = formCtx && formCtx.data && formCtx.data.id;
+      ctrl = `<select id="${id}" name="${f.k}" class="inp" data-quote-pick="1"><option value="">— Sin cotización —</option>${qs.map(c => { const other = c.proyectoId && c.proyectoId !== self ? getRec('proyectos', c.proyectoId) : null; return `<option value="${c.id}" ${c.id === v ? 'selected' : ''}>${esc(c.folio || 's/folio')} · ${esc(String(c.concepto || '').slice(0, 45))} · ${esc(clientName(c))} · ${money(cotTotals(c).total)} · ${esc(c.estado || '')}${other ? ` · ligada a ${esc(other.folio)}` : ''}</option>`; }).join('')}</select>
+        <label class="flex items-center gap-2 mt-2 text-sm"><input type="checkbox" name="_copyQuote" class="w-4 h-4 accent-orange-500" ${v ? '' : 'checked'}>Tomar cliente, importe, IVA, piezas, proceso y partidas de la cotización</label>`; break;
     }
     case 'items': ctrl = itemsEditor(v || []); break;
     default: {
@@ -1193,6 +1199,7 @@ function collectForm() {
     out[f.k] = v;
   }
   if (!err && form.elements._nuevoCliente) out._nuevoCliente = form.elements._nuevoCliente.value.trim();
+  if (!err && form.elements._copyQuote) out._copyQuote = form.elements._copyQuote.checked;
   return { values: out, err };
 }
 function resolveClient(values) {
@@ -1207,6 +1214,7 @@ function resolveClient(values) {
 /* ---- Proyectos ---- */
 const PROJ_FIELDS = () => [
   { k:'nombre', label:'Nombre del proyecto', req:true, full:true, ph:'Ej. Estuches Hebillas JA 2027' },
+  { k:'cotizacionId', label:'Cotización vinculada (opcional)', type:'quote', full:true },
   { k:'clienteId', label:'Cliente', type:'client', full:true },
   { k:'proceso', label:'Proceso principal', type:'select', options:PROCESOS, def:'Carpintería' },
   { k:'negocio', label:'Negocio', type:'select', options:NEGOCIOS, def:'CNC Manufacturing' },
@@ -1233,11 +1241,82 @@ function openProyectoForm(id, preset = {}) {
       resolveClient(v);
       v.avance = Math.max(0, Math.min(100, num(v.avance)));
       if (!p) { v.folio = newFolio(); v.bitacora = []; v.adjuntos = []; }
-      const nid = upsert('proyectos', p ? { id:p.id, ...v } : v);
+      const copy = v._copyQuote; delete v._copyQuote;
+      const oldQ = p ? p.cotizacionId || '' : '', newQ = v.cotizacionId || '';
+      if (newQ && copy) Object.assign(v, quoteDataForProject(getRec('cotizaciones', newQ), v));
+      const nid = upsert('proyectos', p ? { id:p.id, ...v } : v, { silent:true });
+      if (oldQ !== newQ || (newQ && !(getRec('cotizaciones', newQ) || {}).proyectoId)) linkProjectQuote(nid, newQ, oldQ);
+      render();
       toast(p ? 'Proyecto actualizado' : 'Proyecto creado', 'ok');
       openExpediente(nid);
     }
   });
+}
+/* ---- Vincular proyecto ↔ cotización ---- */
+function quoteDataForProject(c, cur = {}) {
+  if (!c) return {};
+  const t = cotTotals(c), out = { importe: Math.round(t.sub * 100) / 100, conIVA: c.conIVA !== false };
+  const pzs = (c.partidas || []).reduce((s, it) => s + num(it.cant), 0); if (pzs) out.cantidad = pzs;
+  if (c.clienteId && !cur.clienteId) { out.clienteId = c.clienteId; delete cur._nuevoCliente; }
+  if (c.proceso && PROCESOS.includes(c.proceso)) out.proceso = c.proceso;
+  if (!String(cur.nombre || '').trim()) out.nombre = c.concepto;
+  if (!isYMD(cur.fechaEntrega) && c.entregaDias) { const d = new Date(); let n = num(c.entregaDias); while (n > 0) { d.setDate(d.getDate() + 1); if (d.getDay() % 6) n--; } out.fechaEntrega = ymd(d); }
+  const part = (c.partidas || []).map(it => `• ${it.cant} × ${it.desc}`).join('\n');
+  if (part && !String(cur.notas || '').includes(part)) out.notas = [String(cur.notas || '').trim(), `Partidas de ${c.folio || 'la cotización'}:\n${part}`].filter(Boolean).join('\n\n');
+  return out;
+}
+function linkProjectQuote(pid, newQ, oldQ) {
+  const p = getRec('proyectos', pid); if (!p) return;
+  const log = [];
+  if (oldQ && oldQ !== newQ) { const o = getRec('cotizaciones', oldQ); if (o && o.proyectoId === pid) { upsert('cotizaciones', { id:o.id, proyectoId:'' }, { silent:true }); log.push(`Cotización ${o.folio || ''} desvinculada`); } }
+  if (newQ) {
+    const c = getRec('cotizaciones', newQ); if (!c) return;
+    if (c.proyectoId && c.proyectoId !== pid) { const op = getRec('proyectos', c.proyectoId); if (op && op.cotizacionId === c.id) upsert('proyectos', { id:op.id, cotizacionId:'', bitacora:[...(op.bitacora || []), { texto:`Cotización ${c.folio || ''} movida al proyecto ${p.folio}`, at:Date.now(), device:deviceLabel() }] }, { silent:true }); }
+    upsert('cotizaciones', { id:c.id, proyectoId:pid, estado: c.estado === 'Rechazada' ? c.estado : 'Aceptada' }, { silent:true });
+    log.push(`Vinculado a cotización ${c.folio || ''} (${money(cotTotals(c).total)})`);
+  }
+  if (log.length) upsert('proyectos', { id:pid, cotizacionId:newQ || '', bitacora:[...(getRec('proyectos', pid).bitacora || []), ...log.map(texto => ({ texto, at:Date.now(), device:deviceLabel() }))] }, { silent:true });
+}
+function openQuoteLinkPicker(pid) {
+  const p = getRec('proyectos', pid); if (!p) return;
+  const qs = list('cotizaciones').sort((a, b) => ((b.clienteId === p.clienteId) - (a.clienteId === p.clienteId)) || (b.createdAt || 0) - (a.createdAt || 0));
+  formCtx = null;
+  openModal(`${modalHead('Vincular cotización', `${p.folio} · ${p.nombre}`)}
+  <div class="modal-body space-y-3">
+    <input class="inp" id="qlSearch" placeholder="Buscar folio, concepto o cliente…" data-ql-search="1">
+    <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="qlCopy" class="w-4 h-4 accent-orange-500" checked>Actualizar el proyecto con el importe, IVA, piezas, proceso y partidas de la cotización</label>
+    <div class="space-y-2 max-h-[55vh] overflow-y-auto" id="qlList">${qs.length ? qs.map(c => { const other = c.proyectoId && c.proyectoId !== pid ? getRec('proyectos', c.proyectoId) : null; const t = cotTotals(c); return `<button class="w-full text-left rounded-xl border ${c.id === p.cotizacionId ? 'border-orange-400 bg-orange-50' : 'border-slate-200'} px-3 py-2 hover:bg-slate-50" data-act="ql-pick" data-pid="${pid}" data-id="${c.id}" data-q="${esc(`${c.folio} ${c.concepto} ${clientName(c)}`.toLowerCase())}">
+      <div class="flex justify-between gap-2"><b class="text-sm">${esc(c.folio || 's/folio')} · ${esc(c.concepto || '')}</b><b class="text-sm whitespace-nowrap">${money(t.total)}</b></div>
+      <div class="text-[11px] text-slate-500">${esc(clientName(c))} · ${fmtDate(c.fecha)} · ${esc(c.estado || '')}${c.clienteId === p.clienteId && p.clienteId ? ' · mismo cliente' : ''}${other ? ` · <span class="text-amber-700">ligada a ${esc(other.folio)} (se moverá)</span>` : ''}${c.id === p.cotizacionId ? ' · <b class="text-orange-600">vinculada actualmente</b>' : ''}</div></button>`; }).join('') : '<div class="text-sm text-slate-400">No hay cotizaciones registradas.</div>'}</div>
+  </div>
+  <div class="modal-foot">${p.cotizacionId ? `<button class="btn btn-danger mr-auto" data-act="ql-unlink" data-pid="${pid}">${ic('unlink')}Desvincular</button>` : ''}<button class="btn" data-act="open-proyecto" data-id="${pid}">Cancelar</button></div>`, 'lg');
+}
+function openProjectLinkPicker(qid) {
+  const c = getRec('cotizaciones', qid); if (!c) return;
+  const ps = list('proyectos').filter(p => p.etapa !== 'Cancelado').sort((a, b) => ((b.clienteId === c.clienteId) - (a.clienteId === c.clienteId)) || (b.createdAt || 0) - (a.createdAt || 0));
+  formCtx = null;
+  openModal(`${modalHead('Vincular a un proyecto existente', `${c.folio || ''} · ${c.concepto || ''}`)}
+  <div class="modal-body space-y-3">
+    <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="qlCopy" class="w-4 h-4 accent-orange-500" checked>Actualizar el proyecto con el importe, IVA, piezas, proceso y partidas de esta cotización</label>
+    <div class="space-y-2 max-h-[55vh] overflow-y-auto">${ps.length ? ps.map(p => { const cur = p.cotizacionId && p.cotizacionId !== qid ? getRec('cotizaciones', p.cotizacionId) : null; return `<button class="w-full text-left rounded-xl border border-slate-200 px-3 py-2 hover:bg-slate-50" data-act="ql-pick" data-pid="${p.id}" data-id="${qid}">
+      <div class="flex justify-between gap-2"><b class="text-sm">${esc(p.folio)} · ${esc(p.nombre)}</b><span class="text-sm">${money(p.importe)}</span></div>
+      <div class="text-[11px] text-slate-500">${esc(clientName(p))} · ${esc(p.etapa)}${p.clienteId === c.clienteId && c.clienteId ? ' · mismo cliente' : ''}${cur ? ` · <span class="text-amber-700">reemplaza ${esc(cur.folio || 'otra cotización')}</span>` : ''}</div></button>`; }).join('') : '<div class="text-sm text-slate-400">No hay proyectos activos.</div>'}</div>
+  </div>
+  <div class="modal-foot"><button class="btn" data-act="modal-close">Cancelar</button></div>`, 'lg');
+}
+function quoteLinkApply(pid, qid, copy) {
+  const p = getRec('proyectos', pid), c = getRec('cotizaciones', qid); if (!p || !c) return;
+  const old = p.cotizacionId || '';
+  if (copy) { const d = quoteDataForProject(c, p); upsert('proyectos', { id:pid, ...d, bitacora:[...(p.bitacora || []), { texto:`Datos actualizados desde ${c.folio || 'cotización'}: importe ${money(d.importe)}${d.cantidad ? `, ${d.cantidad} pzas` : ''}`, at:Date.now(), device:deviceLabel() }] }, { silent:true }); }
+  linkProjectQuote(pid, qid, old);
+  render(); toast(`Proyecto ${p.folio} vinculado a ${c.folio || 'la cotización'}`, 'ok'); openExpediente(pid);
+}
+function quoteCard(p) {
+  const c = p.cotizacionId ? getRec('cotizaciones', p.cotizacionId) : null;
+  if (!c) return `<div class="rounded-xl border border-dashed border-slate-300 p-3 flex items-center justify-between gap-2 flex-wrap"><div class="text-sm text-slate-500">${ic('file-text')} Sin cotización vinculada</div><button class="btn btn-sm" data-act="ql-open" data-pid="${p.id}">${ic('link')}Vincular cotización</button></div>`;
+  const t = cotTotals(c), dif = Math.round((num(p.importe) - t.sub) * 100) / 100;
+  return `<div class="rounded-xl border border-slate-200 p-3"><div class="flex items-start justify-between gap-2 flex-wrap"><div><div class="text-[11px] text-slate-500">Cotización vinculada</div><div class="font-bold">${esc(c.folio || '')} · ${esc(c.concepto || '')}</div><div class="text-[12px] text-slate-500">${fmtDate(c.fecha)} · ${esc(c.estado || '')} · Subtotal ${money(t.sub)} · Total ${money(t.total)}</div>${dif ? `<div class="text-[12px] text-amber-700 mt-1">El importe del proyecto difiere ${money(dif)} de la cotización.</div>` : ''}</div>
+    <div class="flex flex-wrap gap-1"><button class="btn btn-sm" data-act="edit-cotizacion" data-id="${c.id}">${ic('eye')}Ver</button><button class="btn btn-sm" data-act="cot-print" data-id="${c.id}">${ic('printer')}PDF</button><button class="btn btn-sm" data-act="ql-open" data-pid="${p.id}">${ic('repeat')}Cambiar</button></div></div></div>`;
 }
 function openExpediente(id) {
   const p = getRec('proyectos', id);
@@ -1270,6 +1349,7 @@ function openExpediente(id) {
     <div class="grid sm:grid-cols-2 gap-x-6 gap-y-1 text-sm">
       ${[['Cliente', clientName(p)], ['Teléfono', cli && cli.telefono], ['Piezas', p.cantidad], ['Materiales', p.materiales], ['Responsable', p.responsable], ['Referencia', p.referencia]].filter(r => r[1]).map(([l, v]) => `<div class="flex justify-between gap-3 py-1 border-b border-slate-100"><span class="text-slate-500">${l}</span><span class="font-medium text-right">${esc(v)}</span></div>`).join('')}
     </div>
+    ${quoteCard(p)}
     ${p.notas ? `<div class="rounded-xl bg-amber-50 border border-amber-100 p-3 text-sm whitespace-pre-line">${esc(p.notas)}</div>` : ''}
     <div class="flex flex-wrap gap-2">
       <button class="btn btn-sm" data-act="edit-proyecto" data-id="${p.id}">${ic('pencil')}Editar</button>
@@ -1405,28 +1485,6 @@ function cotConvert(id) {
   upsert('cotizaciones', { id:c.id, estado:'Aceptada', proyectoId:pid }, { silent:true });
   if (c.clienteId) { const cl = getRec('clientes', c.clienteId); if (cl && cl.etapa !== 'Recurrente') upsert('clientes', { id:cl.id, etapa: list('proyectos').filter(p => p.clienteId === cl.id).length > 1 ? 'Recurrente' : 'Cliente' }, { silent:true }); }
   render(); toast('Proyecto creado desde la cotización', 'ok'); openExpediente(pid);
-}
-function cotPrint(id) {
-  const c = getRec('cotizaciones', id); if (!c) return;
-  const t = cotTotals(c); const cl = getRec('clientes', c.clienteId);
-  const w = window.open('', '_blank');
-  if (!w) { toast('Permite ventanas emergentes para imprimir', 'error'); return; }
-  w.document.write(`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>${esc(c.folio)} · ${esc(db.settings.empresa)}</title><style>
-    body{font-family:Inter,Arial,sans-serif;color:#0f172a;margin:32px;font-size:13px} h1{margin:0;font-size:22px} .row{display:flex;justify-content:space-between;gap:24px}
-    table{width:100%;border-collapse:collapse;margin-top:20px} th{background:#0f172a;color:#fff;text-align:left;padding:8px;font-size:11px;text-transform:uppercase} td{padding:8px;border-bottom:1px solid #e2e8f0}
-    .r{text-align:right} .tot td{border:none} .muted{color:#64748b} .box{background:#f8fafc;border-radius:10px;padding:12px;margin-top:16px} .acc{color:#ea580c}
-    @media print{button{display:none} body{margin:12mm}}</style></head><body>
-    <div class="row"><div style="display:flex;gap:12px;align-items:center">${logoSVG('').replace('class=""', 'width="54" height="54"')}<div><h1>${esc(db.settings.empresa)}</h1><div class="muted">Fabricación digital · Diseño industrial${db.settings.whatsapp ? ' · WhatsApp ' + esc(db.settings.whatsapp) : ''}</div></div></div>
-    <div class="r"><div class="muted">COTIZACIÓN</div><h1 class="acc">${esc(c.folio)}</h1><div>Fecha: ${fmtDate(c.fecha)}</div><div>Vigencia: ${fmtDate(c.vigencia)}</div></div></div>
-    <div class="box"><b>Cliente:</b> ${esc(clientName(c))}${cl && cl.telefono ? ' · ' + esc(cl.telefono) : ''}${cl && cl.email ? ' · ' + esc(cl.email) : ''}<br><b>Concepto:</b> ${esc(c.concepto)}<br><b>Tiempo de entrega:</b> ${num(c.entregaDias)} días hábiles</div>
-    <table><thead><tr><th>Descripción</th><th class="r">Cant.</th><th class="r">P. unitario</th><th class="r">Importe</th></tr></thead><tbody>
-    ${(c.partidas || []).map(it => `<tr><td>${esc(it.desc)}</td><td class="r">${num(it.cant)}</td><td class="r">${money2(it.pu)}</td><td class="r">${money2(num(it.cant) * num(it.pu))}</td></tr>`).join('')}
-    <tr class="tot"><td colspan="3" class="r">Subtotal</td><td class="r">${money2(t.sub)}</td></tr>${c.conIVA !== false ? `<tr class="tot"><td colspan="3" class="r">IVA ${num(db.settings.iva)}%</td><td class="r">${money2(t.iva)}</td></tr>` : ''}<tr class="tot"><td colspan="3" class="r"><b>Total</b></td><td class="r"><b class="acc">${money2(t.total)}</b></td></tr></tbody></table>
-    ${c.condiciones ? `<div class="box"><b>Condiciones</b><br>${esc(c.condiciones).replace(/\n/g, '<br>')}</div>` : ''}
-    <p class="muted" style="margin-top:28px">Gracias por su preferencia. www.cncmanufacturingmx.com</p>
-    <button onclick="print()" style="padding:10px 16px;border-radius:8px;border:0;background:#f97316;color:#fff;font-weight:700">Imprimir / Guardar PDF</button>
-    <script>setTimeout(function(){print()},400)<\/script></body></html>`);
-  w.document.close();
 }
 function cotWhatsApp(id) {
   const c = getRec('cotizaciones', id); if (!c) return;
@@ -1731,6 +1789,10 @@ const H = {
 
   'new-cotizacion': el => openCotForm(null, el.dataset.cid ? { clienteId: el.dataset.cid } : {}),
   'edit-cotizacion': el => openCotForm(el.dataset.id),
+  'ql-open': el => openQuoteLinkPicker(el.dataset.pid),
+  'ql-proj': el => openProjectLinkPicker(el.dataset.id),
+  'ql-pick': el => quoteLinkApply(el.dataset.pid, el.dataset.id, !!($('#qlCopy') && $('#qlCopy').checked)),
+  'ql-unlink': el => { const p = getRec('proyectos', el.dataset.pid); if (!p || !confirm('¿Desvincular la cotización de este proyecto?')) return; linkProjectQuote(p.id, '', p.cotizacionId); render(); toast('Cotización desvinculada', 'ok'); openExpediente(p.id); },
   'cot-convert': el => { if (confirm('¿Convertir la cotización en proyecto aprobado?')) cotConvert(el.dataset.id); },
   'cot-print': el => cotPrint(el.dataset.id),
   'cot-wa': el => cotWhatsApp(el.dataset.id),
@@ -1755,6 +1817,8 @@ const H = {
   'edit-catalogo': el => openCatForm(el.dataset.id),
   'edit-tarifas': () => openTarifasForm(),
   'edit-empresa': () => openEmpresaForm(),
+  'edit-papeleria': () => openPapeleriaForm(),
+  'pap-preview': () => brPreview(),
   'new-nota': () => openNotaForm(null),
   'edit-nota': el => openNotaForm(el.dataset.id),
   'area-filter': el => { ui.f.area = el.dataset.v; saveUI(); render(); },
@@ -2203,31 +2267,6 @@ function hjRegistrarEntrega(id) {
   const etapa = saldo <= 0 ? 'Entregado' : 'Entrega parcial';
   upsert('hjPedidos', { id, entregas, etapa, bitacora: hjLog(p, `Entrega ${n}: ${cant} unidades entregadas a ${e.recibe || '—'}. Saldo pendiente: ${Math.max(0, saldo)}.${e.obs ? ' ' + e.obs : ''}`) }, { silent:true });
   render(); toast(`Entrega ${n} registrada`, 'ok'); openHJ(id);
-}
-function hjRecibo(id, n) {
-  const p = getRec('hjPedidos', id); const e = p && (p.entregas || []).find(x => num(x.n) === num(n)); if (!e) return;
-  const w = window.open('', '_blank'); if (!w) { toast('Permite ventanas emergentes para imprimir', 'error'); return; }
-  const prev = (p.entregas || []).filter(x => num(x.n) <= num(n)).reduce((s, x) => s + num(x.cant), 0);
-  w.document.write(`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Recibo ${esc(p.folio)}-E${e.n}</title><style>body{font-family:Inter,Arial,sans-serif;margin:32px;color:#0f172a;font-size:14px}h1{margin:0}.row{display:flex;justify-content:space-between}.box{border:1px solid #cbd5e1;border-radius:10px;padding:14px;margin-top:16px}td{padding:6px 4px}.sig{margin-top:60px;display:flex;gap:40px}.sig div{flex:1;border-top:1px solid #0f172a;padding-top:6px;text-align:center}@media print{button{display:none}}</style></head><body>
-    <div class="row"><div><h1>${esc(db.settings.empresa)}</h1><div>Recibo de entrega · Hebillas JA</div></div><div style="text-align:right"><b>${esc(p.folio)}</b><br>Entrega ${e.n}<br>${fmtDate(e.fecha)}</div></div>
-    <div class="box"><table><tr><td>Pedido</td><td><b>${esc(p.titulo)}</b>${p.lugar ? ' · ' + esc(p.lugar) : ''}</td></tr><tr><td>Tipo</td><td>${esc(hjTipoLabel(p.tipo))}</td></tr><tr><td>Cantidad entregada</td><td><b>${num(e.cant)}</b> unidades</td></tr><tr><td>Acumulado entregado</td><td>${prev} de ${num(p.cantidad)} · Saldo pendiente: ${Math.max(0, num(p.cantidad) - prev)}</td></tr><tr><td>Recibe</td><td>${esc(e.recibe || '')}</td></tr><tr><td>Conformidad</td><td>${esc(e.conf || '')}</td></tr>${e.obs ? `<tr><td>Observaciones</td><td>${esc(e.obs)}</td></tr>` : ''}</table></div>
-    <div class="sig"><div>Entrega · ${esc(db.settings.empresa)}</div><div>Recibe · ${esc(e.recibe || '')}</div></div>
-    <button onclick="print()" style="margin-top:24px;padding:10px 16px;border:0;border-radius:8px;background:#f97316;color:#fff;font-weight:700">Imprimir / Guardar PDF</button><script>setTimeout(function(){print()},400)<\/script></body></html>`);
-  w.document.close();
-}
-function hjInformePrint(numInf) {
-  const i = hjInformesCalc().find(x => x.num === num(numInf)); if (!i) return;
-  const w = window.open('', '_blank'); if (!w) { toast('Permite ventanas emergentes para imprimir', 'error'); return; }
-  w.document.write(`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Informe ${String(i.num).padStart(3, '0')} Hebillas JA</title><style>body{font-family:Inter,Arial,sans-serif;margin:28px;color:#0f172a;font-size:13px}table{width:100%;border-collapse:collapse;margin-top:14px}th{background:#0f172a;color:#fff;text-align:left;padding:7px;font-size:11px}td{padding:7px;border-bottom:1px solid #e2e8f0}.r{text-align:right}@media print{button{display:none}}</style></head><body>
-    <h2 style="margin:0">${esc(db.settings.empresa)} · Informe de producción ${String(i.num).padStart(3, '0')}</h2><div>Hebillas JA · ${i.cerrado ? 'Cerrado' + (i.rec.cerradoEn ? ' el ' + fmtDate(i.rec.cerradoEn) : '') : 'En curso'}${i.cerrado && i.rec.factura ? ' · Factura ' + esc(i.rec.factura) : ''}</div>
-    <table><thead><tr><th>Folio</th><th>Evento</th><th>Tipo</th><th class="r">Piezas</th><th class="r">Equiv.</th><th>Estado</th></tr></thead><tbody>
-    ${i.ps.map(p => `<tr><td>${esc(p.folio)}</td><td>${esc(p.titulo)}${p.lugar ? ' · ' + esc(p.lugar) : ''}</td><td>${esc(hjTipoLabel(p.tipo))}</td><td class="r">${num(p.cantidad)}</td><td class="r">${hjFmtEq(hjEq(p))}</td><td>${esc(p.etapa)}</td></tr>`).join('')}
-    <tr><td colspan="3" class="r">Piezas reales / equivalencias del informe</td><td class="r"><b>${i.pz}</b></td><td class="r"><b>${hjFmtEq(i.eq)}</b></td><td></td></tr>
-    <tr><td colspan="4" class="r">Saldo del informe anterior</td><td class="r">${hjFmtEq(i.saldo)}</td><td></td></tr>
-    <tr><td colspan="4" class="r"><b>Total con saldo</b></td><td class="r"><b>${hjFmtEq(i.total)}</b></td><td></td></tr>
-    <tr><td colspan="4" class="r">Excedente para el siguiente informe</td><td class="r">${hjFmtEq(i.exc)}</td><td></td></tr></tbody></table>
-    <button onclick="print()" style="margin-top:20px;padding:10px 16px;border:0;border-radius:8px;background:#f97316;color:#fff;font-weight:700">Imprimir / Guardar PDF</button><script>setTimeout(function(){print()},400)<\/script></body></html>`);
-  w.document.close();
 }
 function openHJJornada(id) {
   const j = id ? getRec('hjJornadas', id) : null;
@@ -2868,9 +2907,6 @@ function legalGenGo() {
   render(); toast(doc ? 'Documento actualizado' : (pend ? `Documento generado · ${pend} campo(s) por completar` : 'Documento generado completo'), 'ok', 4500); openLegalView(nid);
 }
 
-function legalHtml(d) {
-  return `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>${esc(d.titulo)}</title><style>body{font-family:Georgia,'Times New Roman',serif;margin:28mm 22mm;color:#111;font-size:11.5pt;line-height:1.55}pre{white-space:pre-wrap;font-family:inherit;margin:0}.meta{font-family:Arial,sans-serif;font-size:9pt;color:#666;border-bottom:1px solid #ccc;padding-bottom:6px;margin-bottom:18px}@media print{button{display:none}body{margin:18mm}}</style></head><body><div class="meta">${esc(db.settings.empresa || '')} · ${esc(d.categoria)} · v${esc(d.version || '1.0')} · ${esc(d.estado)}</div><pre>${esc(d.contenido)}</pre></body></html>`;
-}
 Object.assign(H, {
   'legal-new': el => openLegalForm(null, el.dataset.cat ? { categoria: el.dataset.cat, tipo: el.dataset.tipo || 'Borrador / plantilla', plantilla: el.dataset.tipo === 'Borrador / plantilla', titulo: el.dataset.tipo === 'Borrador / plantilla' ? `Plantilla — ${el.dataset.cat}` : `${el.dataset.cat} — ` } : {}),
   'legal-view': el => openLegalView(el.dataset.id),
@@ -2881,12 +2917,177 @@ Object.assign(H, {
   'legal-gen-go': () => legalGenGo(),
   'legal-gen-preview': () => legalGenPreview(),
   'legal-regen': el => { const d = getRec('legal', el.dataset.id); if (d && d.formData) openLegalGenerate(d.formData.tplId, d.id); },
-  'legal-print': el => { const d = getRec('legal', el.dataset.id); if (!d) return; const w = window.open('', '_blank'); if (!w) { toast('Permite ventanas emergentes', 'error'); return; } w.document.write(legalHtml(d).replace('</body>', '<script>setTimeout(function(){print()},300)<\/script></body>')); w.document.close(); },
-  'legal-word': el => { const d = getRec('legal', el.dataset.id); if (!d) return; download(`${d.titulo.replace(/[\\/:*?"<>|]+/g, '-').slice(0, 80)}.doc`, '﻿' + legalHtml(d), 'application/msword'); },
+  'legal-print': el => { const d = getRec('legal', el.dataset.id); if (d) brOpen(legalHtml(d)); },
+  'legal-word': el => { const d = getRec('legal', el.dataset.id); if (d) legalWord(d); },
   'legal-gen-proj': el => { const t = legalTemplateOf('Contratos con clientes'); if (!t) { toast('No hay plantilla de contrato con clientes. Importa la del sistema anterior o crea una en Legal.', 'error', 5000); return; } const pid = el.dataset.id; openLegalGenerate(t.id); const s = $('#lg_proj'); if (s) { s.value = pid; legalGenFill(); } },
   'legal-copy': el => { const d = getRec('legal', el.dataset.id); if (!d) return; navigator.clipboard && navigator.clipboard.writeText(d.contenido).then(() => toast('Texto copiado', 'ok')).catch(() => toast('No se pudo copiar', 'error')); }
 });
 
+
+/* ===== Papelería entregable · Identidad «Pieza amable» (Manual de identidad v2) ===== */
+const BR = { nogal:'#2E221C', nogal700:'#4A3A30', nogal500:'#6B5B4E', ambar:'#C07F3A', ambar700:'#8E5A22', brasa:'#E05A2B', brasa700:'#B23F14', salvia:'#7E9B86', salvia700:'#4F6B57', hueso:'#F4ECDF', hueso50:'#FAF6EF', arena:'#D9C9B2' };
+const BR_ISO_BOARD = 'M32 8 H88 A24 24 0 0 1 112 32 V88 A24 24 0 0 1 88 112 H32 A24 24 0 0 1 8 88 V32 A24 24 0 0 1 32 8 Z M24 40 a16 16 0 1 0 32 0 a16 16 0 1 0 -32 0 Z M51.03 90.63 L90.63 51.03 A4 4 0 0 0 84.97 45.37 L45.37 84.97 A4 4 0 0 0 51.03 90.63 Z M68 96.28 L96.28 68 A4 4 0 0 0 90.63 62.34 L62.34 90.63 A4 4 0 0 0 68 96.28 Z M86.38 100.53 L100.53 86.38 A4 4 0 0 0 94.87 80.73 L80.73 94.87 A4 4 0 0 0 86.38 100.53 Z';
+const BR_ISO_BARS = ["M51.03 90.63 L90.63 51.03 A4 4 0 0 0 84.97 45.37 L45.37 84.97 A4 4 0 0 0 51.03 90.63 Z", "M68 96.28 L96.28 68 A4 4 0 0 0 90.63 62.34 L62.34 90.63 A4 4 0 0 0 68 96.28 Z", "M86.38 100.53 L100.53 86.38 A4 4 0 0 0 94.87 80.73 L80.73 94.87 A4 4 0 0 0 86.38 100.53 Z"];
+const BR_TXT = ["M153.62 45.79Q147.06 45.79 142.11 42.98Q137.15 40.16 134.38 35.25Q131.61 30.34 131.61 23.95Q131.61 17.57 134.42 12.65Q137.24 7.74 142.19 4.93Q147.15 2.11 153.62 2.11Q161.76 2.11 167.35 6.35Q172.94 10.6 174.45 18.07H161.93Q161.18 15.22 158.91 13.62Q156.64 12.02 153.53 12.02Q150.68 12.02 148.45 13.45Q146.22 14.88 144.92 17.57Q143.62 20.26 143.62 23.95Q143.62 26.72 144.33 28.87Q145.05 31.01 146.39 32.56Q147.74 34.12 149.54 34.96Q151.35 35.8 153.53 35.8Q155.63 35.8 157.31 35.08Q158.99 34.37 160.21 33.02Q161.43 31.68 161.93 29.83H174.45Q172.94 37.14 167.35 41.47Q161.76 45.79 153.62 45.79Z M180.41 44.78V3.12H190.58L191.58 10.01H191.75Q193.68 6.4 197.21 4.25Q200.74 2.11 205.86 2.11Q211.07 2.11 214.68 4.34Q218.3 6.56 220.23 10.89Q222.16 15.22 222.16 21.52V44.78H210.4V22.61Q210.4 17.48 208.38 14.75Q206.37 12.02 201.83 12.02Q199.06 12.02 196.88 13.37Q194.69 14.71 193.43 17.23Q192.17 19.75 192.17 23.28V44.78Z M249.63 45.79Q243.08 45.79 238.12 42.98Q233.16 40.16 230.39 35.25Q227.62 30.34 227.62 23.95Q227.62 17.57 230.43 12.65Q233.25 7.74 238.2 4.93Q243.16 2.11 249.63 2.11Q257.78 2.11 263.36 6.35Q268.95 10.6 270.46 18.07H257.94Q257.19 15.22 254.92 13.62Q252.65 12.02 249.54 12.02Q246.69 12.02 244.46 13.45Q242.24 14.88 240.93 17.57Q239.63 20.26 239.63 23.95Q239.63 26.72 240.35 28.87Q241.06 31.01 242.4 32.56Q243.75 34.12 245.55 34.96Q247.36 35.8 249.54 35.8Q251.64 35.8 253.32 35.08Q255 34.37 256.22 33.02Q257.44 31.68 257.94 29.83H270.46Q268.95 37.14 263.36 41.47Q257.78 45.79 249.63 45.79Z", "M132.12 89.96V70.12H136.36L136.76 73.16H136.84Q137.76 71.44 139.38 70.54Q141 69.64 143.08 69.64Q144.6 69.64 145.86 70.04Q147.12 70.44 148.06 71.28Q149 72.12 149.64 73.4H149.72Q150.8 71.64 152.54 70.64Q154.28 69.64 156.64 69.64Q159.04 69.64 160.76 70.66Q162.48 71.68 163.42 73.7Q164.36 75.72 164.36 78.68V89.96H159.6V79.16Q159.6 76.52 158.56 75.1Q157.52 73.68 155.36 73.68Q153.96 73.68 152.9 74.34Q151.84 75 151.24 76.28Q150.64 77.56 150.64 79.44V89.96H145.84V79.16Q145.84 76.52 144.8 75.1Q143.76 73.68 141.64 73.68Q140.32 73.68 139.24 74.4Q138.16 75.12 137.54 76.46Q136.92 77.8 136.92 79.72V89.96Z M174.96 90.44Q172.52 90.44 170.92 89.62Q169.32 88.8 168.56 87.42Q167.8 86.04 167.8 84.4Q167.8 82.52 168.78 81.14Q169.76 79.76 171.68 78.98Q173.6 78.2 176.44 78.2H181.52Q181.52 76.6 181.06 75.56Q180.6 74.52 179.66 74.02Q178.72 73.52 177.32 73.52Q175.68 73.52 174.46 74.3Q173.24 75.08 173 76.64H168.28Q168.48 74.48 169.7 72.92Q170.92 71.36 172.92 70.5Q174.92 69.64 177.36 69.64Q180.2 69.64 182.2 70.62Q184.2 71.6 185.26 73.4Q186.32 75.2 186.32 77.76V89.96H182.32L181.8 86.76H181.72Q181.24 87.64 180.56 88.32Q179.88 89 179.04 89.46Q178.2 89.92 177.18 90.18Q176.16 90.44 174.96 90.44ZM176.24 86.64Q177.44 86.64 178.36 86.22Q179.28 85.8 179.92 85.04Q180.56 84.28 180.94 83.32Q181.32 82.36 181.4 81.32V81.28H176.96Q175.52 81.28 174.6 81.64Q173.68 82 173.26 82.62Q172.84 83.24 172.84 84.04Q172.84 84.88 173.26 85.46Q173.68 86.04 174.44 86.34Q175.2 86.64 176.24 86.64Z M190.28 89.96V70.12H194.48L194.84 73.4H194.92Q195.88 71.68 197.58 70.66Q199.28 69.64 201.68 69.64Q204.12 69.64 205.84 70.66Q207.56 71.68 208.48 73.7Q209.4 75.72 209.4 78.68V89.96H204.64V79.16Q204.64 76.52 203.54 75.1Q202.44 73.68 200.16 73.68Q198.68 73.68 197.54 74.4Q196.4 75.12 195.74 76.46Q195.08 77.8 195.08 79.72V89.96Z M220.8 90.44Q218.4 90.44 216.66 89.42Q214.92 88.4 214 86.38Q213.08 84.36 213.08 81.4V70.12H217.88V80.92Q217.88 83.6 218.96 85Q220.04 86.4 222.32 86.4Q223.8 86.4 224.94 85.68Q226.08 84.96 226.74 83.62Q227.4 82.28 227.4 80.36V70.12H232.2V89.96H228.04L227.64 86.68H227.56Q226.6 88.4 224.9 89.42Q223.2 90.44 220.8 90.44Z M237.68 89.96V68Q237.68 65.68 238.48 64.26Q239.28 62.84 240.76 62.2Q242.24 61.56 244.24 61.56H246.4V65.56H245Q243.68 65.56 243.1 66.1Q242.52 66.64 242.52 67.96V89.96ZM234.92 74V70.12H246.88V74Z M256.56 90.44Q254.12 90.44 252.52 89.62Q250.92 88.8 250.16 87.42Q249.4 86.04 249.4 84.4Q249.4 82.52 250.38 81.14Q251.36 79.76 253.28 78.98Q255.2 78.2 258.04 78.2H263.12Q263.12 76.6 262.66 75.56Q262.2 74.52 261.26 74.02Q260.32 73.52 258.92 73.52Q257.28 73.52 256.06 74.3Q254.84 75.08 254.6 76.64H249.88Q250.08 74.48 251.3 72.92Q252.52 71.36 254.52 70.5Q256.52 69.64 258.96 69.64Q261.8 69.64 263.8 70.62Q265.8 71.6 266.86 73.4Q267.92 75.2 267.92 77.76V89.96H263.92L263.4 86.76H263.32Q262.84 87.64 262.16 88.32Q261.48 89 260.64 89.46Q259.8 89.92 258.78 90.18Q257.76 90.44 256.56 90.44ZM257.84 86.64Q259.04 86.64 259.96 86.22Q260.88 85.8 261.52 85.04Q262.16 84.28 262.54 83.32Q262.92 82.36 263 81.32V81.28H258.56Q257.12 81.28 256.2 81.64Q255.28 82 254.86 82.62Q254.44 83.24 254.44 84.04Q254.44 84.88 254.86 85.46Q255.28 86.04 256.04 86.34Q256.8 86.64 257.84 86.64Z M281.52 90.44Q278.44 90.44 276.14 89.12Q273.84 87.8 272.54 85.46Q271.24 83.12 271.24 80.04Q271.24 76.96 272.56 74.64Q273.88 72.32 276.2 70.98Q278.52 69.64 281.52 69.64Q285.28 69.64 287.84 71.6Q290.4 73.56 291.12 76.96H286.08Q285.68 75.36 284.44 74.52Q283.2 73.68 281.48 73.68Q280.04 73.68 278.82 74.4Q277.6 75.12 276.86 76.56Q276.12 78 276.12 80.04Q276.12 81.56 276.54 82.72Q276.96 83.88 277.68 84.7Q278.4 85.52 279.38 85.94Q280.36 86.36 281.48 86.36Q282.64 86.36 283.56 85.98Q284.48 85.6 285.14 84.88Q285.8 84.16 286.08 83.12H291.12Q290.4 86.44 287.84 88.44Q285.28 90.44 281.52 90.44Z M303.4 89.96Q301.36 89.96 299.86 89.32Q298.36 88.68 297.54 87.2Q296.72 85.72 296.72 83.2V74H293.32V70.12H296.72L297.24 64.92H301.52V70.12H306.96V74H301.52V83.2Q301.52 84.8 302.16 85.38Q302.8 85.96 304.4 85.96H306.8V89.96Z M317.48 90.44Q315.08 90.44 313.34 89.42Q311.6 88.4 310.68 86.38Q309.76 84.36 309.76 81.4V70.12H314.56V80.92Q314.56 83.6 315.64 85Q316.72 86.4 319 86.4Q320.48 86.4 321.62 85.68Q322.76 84.96 323.42 83.62Q324.08 82.28 324.08 80.36V70.12H328.88V89.96H324.72L324.32 86.68H324.24Q323.28 88.4 321.58 89.42Q319.88 90.44 317.48 90.44Z M333.12 89.96V70.12H337.32L337.76 74.16H337.84Q338.64 72.44 339.68 71.46Q340.72 70.48 342.08 70.06Q343.44 69.64 345.16 69.64V74.68H343.84Q342.48 74.68 341.38 75.02Q340.28 75.36 339.52 76.04Q338.76 76.72 338.34 77.86Q337.92 79 337.92 80.64V89.96Z M348.28 89.96V70.12H353.08V89.96ZM350.68 67Q349.36 67 348.5 66.18Q347.64 65.36 347.64 64.16Q347.64 62.92 348.5 62.12Q349.36 61.32 350.68 61.32Q352 61.32 352.86 62.12Q353.72 62.92 353.72 64.16Q353.72 65.36 352.86 66.18Q352 67 350.68 67Z M357.72 89.96V70.12H361.92L362.28 73.4H362.36Q363.32 71.68 365.02 70.66Q366.72 69.64 369.12 69.64Q371.56 69.64 373.28 70.66Q375 71.68 375.92 73.7Q376.84 75.72 376.84 78.68V89.96H372.08V79.16Q372.08 76.52 370.98 75.1Q369.88 73.68 367.6 73.68Q366.12 73.68 364.98 74.4Q363.84 75.12 363.18 76.46Q362.52 77.8 362.52 79.72V89.96Z M389.64 98.84Q386.84 98.84 384.72 98.14Q382.6 97.44 381.42 96.06Q380.24 94.68 380.24 92.68Q380.24 91.48 380.86 90.34Q381.48 89.2 382.74 88.22Q384 87.24 385.96 86.48L388 88.76Q386.16 89.44 385.4 90.36Q384.64 91.28 384.64 92.32Q384.64 93.28 385.28 93.94Q385.92 94.6 387.04 94.94Q388.16 95.28 389.64 95.28Q391.08 95.28 392.08 94.9Q393.08 94.52 393.62 93.86Q394.16 93.2 394.16 92.28Q394.16 91.16 393.34 90.46Q392.52 89.76 390.12 89.6Q388 89.44 386.42 89.16Q384.84 88.88 383.7 88.46Q382.56 88.04 381.78 87.54Q381 87.04 380.44 86.52V85.6L384.64 81.28L387.76 82.44L383.48 86.96L384.64 84.8Q385.04 85.04 385.46 85.24Q385.88 85.44 386.56 85.62Q387.24 85.8 388.32 85.96Q389.4 86.12 391.08 86.24Q393.72 86.48 395.4 87.2Q397.08 87.92 397.86 89.16Q398.64 90.4 398.64 92.16Q398.64 93.8 397.68 95.34Q396.72 96.88 394.72 97.86Q392.72 98.84 389.64 98.84ZM389.64 84Q387.12 84 385.32 83.02Q383.52 82.04 382.56 80.42Q381.6 78.8 381.6 76.8Q381.6 74.8 382.56 73.2Q383.52 71.6 385.32 70.62Q387.12 69.64 389.64 69.64Q392.16 69.64 393.96 70.62Q395.76 71.6 396.72 73.2Q397.68 74.8 397.68 76.8Q397.68 78.8 396.72 80.42Q395.76 82.04 393.96 83.02Q392.16 84 389.64 84ZM389.64 80.36Q391.36 80.36 392.42 79.46Q393.48 78.56 393.48 76.84Q393.48 75.08 392.42 74.2Q391.36 73.32 389.64 73.32Q387.92 73.32 386.86 74.2Q385.8 75.08 385.8 76.84Q385.8 78.56 386.86 79.46Q387.92 80.36 389.64 80.36ZM392.88 73.52 391.96 70.12H400.24V72.92Z"];
+function brIsoInner(ink = BR.nogal, bar = BR.ambar, dot = BR.brasa) {
+  return `<path fill-rule="evenodd" fill="${ink}" d="${BR_ISO_BOARD}"/>${bar ? BR_ISO_BARS.map(d => `<path fill="${bar}" d="${d}"/>`).join('') : ''}<circle cx="40" cy="40" r="6" fill="${dot || ink}"/>`;
+}
+const brIso = (w = 40, o = {}) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="8 8 104 104" width="${w}" height="${w}" role="img" aria-label="CNC Manufacturing">${brIsoInner(o.ink, o.bar === undefined ? BR.ambar : o.bar, o.dot === undefined ? BR.brasa : o.dot)}</svg>`;
+const brLogoH = (w = 200, o = {}) => { const ink = o.ink || BR.nogal, txt = o.txt || ink; return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 401.6 112" width="${w}" height="${Math.round(w * 112 / 401.6)}" role="img" aria-label="CNC Manufacturing"><g transform="translate(-8 -8)">${brIsoInner(ink, o.bar === undefined ? BR.ambar : o.bar, o.dot === undefined ? BR.brasa : o.dot)}</g>${BR_TXT.map(d => `<path fill="${txt}" d="${d}"/>`).join('')}</svg>`; };
+/* Grafismo: tres franjas diagonales a 45° (largas, medianas, cortas) para una esquina */
+const brFranjas = (w = 120, color = BR.arena) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="${w}" height="${w}" aria-hidden="true"><g stroke="${color}" stroke-width="12" stroke-linecap="round" fill="none"><line x1="24" y1="6" x2="114" y2="96"/><line x1="54" y1="6" x2="114" y2="66"/><line x1="86" y1="6" x2="114" y2="34"/></g></svg>`;
+function brDatos() {
+  const s = db.settings, p = s.papeleria || {};
+  return { empresa: s.empresa || 'CNC Manufacturing MX', razon: p.razon || '', rfc: p.rfc || '', tel: p.tel || s.whatsapp || '+52 33 3157 3952', web: p.web || 'cncmanufacturingmx.com', ig: p.ig || '@cncmanufacturingmx', email: p.email || '', dir: p.dir || 'Libertad 1597, Col. Agua Blanca Sur, C.P. 45235, Zapopan, Jal.', lema: p.lema || 'Hecho en México · Desde 2014', gracias: p.gracias || 'Gracias por confiar en el taller.' };
+}
+const BR_FONTS = `<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&family=Fraunces:ital,opsz,wght@0,9..144,600;1,9..144,500&display=swap" rel="stylesheet">`;
+const BR_CSS = `
+  @page{size:letter;margin:16mm 18mm 18mm}
+  *{box-sizing:border-box}
+  html{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  body{margin:0;background:#E9E2D6;color:${BR.nogal};font:400 10.5pt/1.55 'DM Sans','Segoe UI',Arial,sans-serif}
+  .hoja{position:relative;max-width:216mm;min-height:279mm;margin:18px auto;background:#fff;padding:18mm 20mm 16mm;border-radius:6px;box-shadow:0 10px 30px rgba(46,34,28,.18);display:flex;flex-direction:column;overflow:hidden}
+  .franjas{position:absolute;top:0;right:0;opacity:1;pointer-events:none}
+  .mem{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;position:relative}
+  .mem .ct{text-align:right;font-size:8.5pt;line-height:1.55;color:${BR.nogal500};padding-right:26mm}
+  .mem .ct b{color:${BR.nogal};font-weight:700}
+  .linea{height:1px;background:${BR.arena};margin:7mm 0 6mm}
+  .enc{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;margin-bottom:5mm}
+  .kick{font:700 9pt/1.3 'DM Sans',sans-serif;color:${BR.ambar700};letter-spacing:.02em}
+  h1{font:600 22pt/1.15 Fraunces,Georgia,serif;margin:2px 0 0;color:${BR.nogal}}
+  h2{font:600 14pt/1.25 Fraunces,Georgia,serif;margin:0 0 3mm;color:${BR.nogal}}
+  .folio{text-align:right;font-size:9pt;color:${BR.nogal500};line-height:1.6}
+  .folio .num{font:700 13pt/1.2 'DM Sans',sans-serif;color:${BR.nogal};display:flex;align-items:center;gap:6px;justify-content:flex-end}
+  .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:${BR.brasa}}
+  .panel{background:${BR.hueso};border-radius:12px;padding:4mm 5mm;margin:0 0 5mm}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:2mm 8mm}
+  .lbl{font:700 8pt/1.3 'DM Sans',sans-serif;color:${BR.nogal500}}
+  .val{font-weight:500}
+  table.t{width:100%;border-collapse:separate;border-spacing:0;margin:2mm 0 4mm;font-size:9.8pt}
+  table.t thead th{background:${BR.nogal};color:${BR.hueso};font:700 8.5pt/1.3 'DM Sans',sans-serif;text-align:left;padding:2.6mm 3mm}
+  table.t thead th:first-child{border-radius:8px 0 0 8px} table.t thead th:last-child{border-radius:0 8px 8px 0}
+  table.t td{padding:2.4mm 3mm;border-bottom:1px solid ${BR.arena};vertical-align:top}
+  table.t tr.sum td{border:0;padding:1.4mm 3mm}
+  table.t tr.total td{border:0;padding-top:2.5mm;font-size:12pt}
+  .r,table.t th.r{text-align:right;white-space:nowrap} .num{font-variant-numeric:tabular-nums}
+  .tot-pill{display:inline-flex;align-items:center;gap:7px;background:${BR.hueso};border-radius:999px;padding:1.6mm 4mm;font-weight:700}
+  .nota{font-size:9pt;color:${BR.nogal700};white-space:pre-line}
+  .frase{font:italic 500 13pt/1.4 Fraunces,Georgia,serif;color:${BR.nogal700};margin:6mm 0 0}
+  .firmas{display:flex;gap:14mm;margin-top:18mm} .firmas div{flex:1;border-top:1px solid ${BR.nogal};padding-top:2mm;text-align:center;font-size:9pt}
+  .legal{font:400 10.5pt/1.6 'DM Sans',sans-serif;white-space:pre-wrap}
+  .legal .h{display:block;font:600 11.5pt/1.4 Fraunces,Georgia,serif;margin:4mm 0 1mm}
+  .pie{margin-top:auto;padding-top:8mm;display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:7.8pt;color:${BR.nogal500}}
+  .pie b{color:${BR.nogal}}
+  .pie .sello{display:flex;align-items:center;gap:6px}
+  .acciones{position:sticky;top:0;z-index:5;display:flex;justify-content:center;gap:8px;padding:10px;background:rgba(233,226,214,.92)}
+  .acciones button{font:700 10.5pt 'DM Sans',sans-serif;border:0;border-radius:12px;padding:10px 18px;cursor:pointer;background:${BR.nogal};color:${BR.hueso}}
+  .acciones button.sec{background:#fff;color:${BR.nogal};box-shadow:inset 0 0 0 1px ${BR.arena}}
+  @media print{body{background:#fff}.hoja{margin:0;box-shadow:none;border-radius:0;padding:0;min-height:auto;max-width:none}.franjas{top:-16mm;right:-18mm}.acciones{display:none}.pie{position:static}}
+  @media screen and (max-width:700px){.hoja{padding:10mm 8mm;margin:0;border-radius:0}.mem{flex-direction:column}.mem .ct{text-align:left;padding:0}.grid2{grid-template-columns:1fr}.enc{flex-direction:column;align-items:flex-start}.folio,.folio .num{text-align:left;justify-content:flex-start}h1{font-size:19pt}table.t{display:block;overflow-x:auto;font-size:9pt}table.t td,table.t th{padding:2mm}}`;
+/* Hoja membretada: logo horizontal arriba a la izquierda, contacto a la derecha, línea arena, pie con dirección y lema */
+function brDoc({ title, kicker, h1, folio = [], body, autoPrint = true, extraCss = '', dot = true }) {
+  const D = brDatos();
+  return `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)}</title>${BR_FONTS}<style>${BR_CSS}${extraCss}</style></head><body>
+  <div class="acciones"><button onclick="print()">Imprimir / guardar PDF</button><button class="sec" onclick="close()">Cerrar</button></div>
+  <div class="hoja">
+    <div class="franjas">${brFranjas(96)}</div>
+    <div class="mem">${brLogoH(205)}<div class="ct">${D.razon ? `<b>${esc(D.razon)}</b><br>` : ''}${D.rfc ? `RFC ${esc(D.rfc)}<br>` : ''}${esc(D.tel)}<br>${D.email ? esc(D.email) + '<br>' : ''}${esc(D.web)}<br>${esc(D.ig)}</div></div>
+    <div class="linea"></div>
+    <div class="enc"><div><div class="kick">${esc(kicker)}</div><h1>${esc(h1)}</h1></div>${folio.length ? `<div class="folio">${folio.map((f, i) => i === 0 ? `<div class="num">${dot ? '<span class="dot"></span>' : ''}${esc(f)}</div>` : `<div>${f}</div>`).join('')}</div>` : ''}</div>
+    ${body}
+    <div class="pie"><span>${esc(D.dir)}</span><span class="sello">${brIso(14, { bar: BR.ambar, dot: BR.brasa })}<b>${esc(D.lema)}</b></span></div>
+  </div>
+  ${autoPrint ? `<script>(document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve()).then(function(){setTimeout(function(){print()},250)});<\/script>` : ''}</body></html>`;
+}
+function brOpen(html) {
+  const w = window.open('', '_blank');
+  if (!w) { toast('Permite ventanas emergentes para imprimir', 'error'); return null; }
+  w.document.write(html); w.document.close(); return w;
+}
+/* ---- Cotización ---- */
+function cotPrint(id) {
+  const c = getRec('cotizaciones', id); if (!c) return;
+  const t = cotTotals(c); const cl = getRec('clientes', c.clienteId); const D = brDatos();
+  const body = `
+    <div class="panel grid2">
+      <div><div class="lbl">Cliente</div><div class="val">${esc(clientName(c))}</div>${cl && (cl.telefono || cl.email) ? `<div class="nota">${esc([cl.telefono, cl.email].filter(Boolean).join(' · '))}</div>` : ''}${cl && cl.rfc ? `<div class="nota">RFC ${esc(cl.rfc)}</div>` : ''}</div>
+      <div><div class="lbl">Proyecto</div><div class="val">${esc(c.concepto || '')}</div><div class="nota">${esc(c.proceso || '')}${c.entregaDias ? ` · Entrega en ${num(c.entregaDias)} días hábiles` : ''}</div></div>
+    </div>
+    <table class="t"><thead><tr><th style="width:8%">#</th><th>Descripción</th><th class="r">Cant.</th><th class="r">P. unitario</th><th class="r">Importe</th></tr></thead><tbody>
+    ${(c.partidas || []).map((it, i) => `<tr><td class="num">${String(i + 1).padStart(2, '0')}</td><td>${esc(it.desc)}</td><td class="r num">${num(it.cant)}</td><td class="r num">${money2(it.pu)}</td><td class="r num">${money2(num(it.cant) * num(it.pu))}</td></tr>`).join('')}
+    <tr class="sum"><td colspan="4" class="r">Subtotal</td><td class="r num">${money2(t.sub)}</td></tr>
+    ${c.conIVA !== false ? `<tr class="sum"><td colspan="4" class="r">IVA ${num(db.settings.iva)} %</td><td class="r num">${money2(t.iva)}</td></tr>` : '<tr class="sum"><td colspan="4" class="r">Precio sin IVA</td><td></td></tr>'}
+    <tr class="total"><td colspan="4" class="r"><b>Total</b></td><td class="r"><span class="tot-pill num"><span class="dot"></span>${money2(t.total)}</span></td></tr></tbody></table>
+    ${c.condiciones ? `<h2>Condiciones</h2><div class="nota">${esc(c.condiciones)}</div>` : ''}
+    <p class="frase">${esc(D.gracias)}</p>
+    <div class="nota" style="margin-top:2mm">Para aprobar, responde por WhatsApp al ${esc(D.tel)} con el folio ${esc(c.folio || '')}.</div>`;
+  brOpen(brDoc({ title: `${c.folio || 'Cotización'} · ${D.empresa}`, kicker: 'Cotización', h1: c.concepto ? String(c.concepto).slice(0, 70) : 'Cotización', folio: [c.folio || 's/folio', `Fecha: ${fmtDate(c.fecha)}`, `Vigente hasta: ${fmtDate(c.vigencia)}`], body, dot: false }));
+}
+/* ---- Hebillas JA: recibo de entrega ---- */
+function hjRecibo(id, n) {
+  const p = getRec('hjPedidos', id); const e = p && (p.entregas || []).find(x => num(x.n) === num(n)); if (!e) return;
+  const prev = (p.entregas || []).filter(x => num(x.n) <= num(n)).reduce((s, x) => s + num(x.cant), 0);
+  const D = brDatos();
+  const rows = [['Pedido', `<b>${esc(p.titulo)}</b>${p.lugar ? ' · ' + esc(p.lugar) : ''}`], ['Tipo', esc(hjTipoLabel(p.tipo))], ['Cantidad entregada', `<b>${num(e.cant)}</b> unidades`], ['Acumulado entregado', `${prev} de ${num(p.cantidad)} · saldo pendiente ${Math.max(0, num(p.cantidad) - prev)}`], ['Recibe', esc(e.recibe || '')], ['Conformidad', esc(e.conf || '')], ...(e.obs ? [['Observaciones', esc(e.obs)]] : [])];
+  const body = `<div class="panel"><div class="lbl">Cliente</div><div class="val">Hebillas JA</div></div>
+    <table class="t"><thead><tr><th style="width:32%">Concepto</th><th>Detalle</th></tr></thead><tbody>${rows.map(([a, b]) => `<tr><td>${a}</td><td>${b}</td></tr>`).join('')}</tbody></table>
+    <div class="firmas"><div>Entrega · ${esc(D.empresa)}</div><div>Recibe · ${esc(e.recibe || '')}</div></div>`;
+  brOpen(brDoc({ title: `Recibo ${p.folio}-E${e.n}`, kicker: 'Recibo de entrega', h1: `Entrega ${e.n} · ${p.titulo}`.slice(0, 80), folio: [`${p.folio}-E${e.n}`, `Fecha: ${fmtDate(e.fecha)}`], body }));
+}
+/* ---- Hebillas JA: informe de producción ---- */
+function hjInformePrint(numInf) {
+  const i = hjInformesCalc().find(x => x.num === num(numInf)); if (!i) return;
+  const nn = String(i.num).padStart(3, '0');
+  const body = `<div class="panel grid2"><div><div class="lbl">Cliente</div><div class="val">Hebillas JA</div></div><div><div class="lbl">Estado</div><div class="val">${i.cerrado ? 'Cerrado' + (i.rec.cerradoEn ? ' el ' + fmtDate(i.rec.cerradoEn) : '') : 'En curso'}${i.cerrado && i.rec.factura ? ' · Factura ' + esc(i.rec.factura) : ''}</div></div></div>
+    <table class="t"><thead><tr><th>Folio</th><th>Evento</th><th>Tipo</th><th class="r">Piezas</th><th class="r">Equiv.</th><th>Estado</th></tr></thead><tbody>
+    ${i.ps.map(p => `<tr><td class="num">${esc(p.folio)}</td><td>${esc(p.titulo)}${p.lugar ? ' · ' + esc(p.lugar) : ''}</td><td>${esc(hjTipoLabel(p.tipo))}</td><td class="r num">${num(p.cantidad)}</td><td class="r num">${hjFmtEq(hjEq(p))}</td><td>${esc(p.etapa)}</td></tr>`).join('')}
+    <tr class="sum"><td colspan="3" class="r">Piezas reales / equivalencias del informe</td><td class="r num"><b>${i.pz}</b></td><td class="r num"><b>${hjFmtEq(i.eq)}</b></td><td></td></tr>
+    <tr class="sum"><td colspan="4" class="r">Saldo del informe anterior</td><td class="r num">${hjFmtEq(i.saldo)}</td><td></td></tr>
+    <tr class="total"><td colspan="4" class="r"><b>Total con saldo</b></td><td class="r"><span class="tot-pill num"><span class="dot"></span>${hjFmtEq(i.total)}</span></td><td></td></tr>
+    <tr class="sum"><td colspan="4" class="r">Excedente para el siguiente informe</td><td class="r num">${hjFmtEq(i.exc)}</td><td></td></tr></tbody></table>`;
+  brOpen(brDoc({ title: `Informe ${nn} Hebillas JA`, kicker: 'Informe de producción', h1: `Hebillas JA · informe ${nn}`, folio: [`INF-${nn}`, `Emitido: ${fmtDate(today())}`], body, dot: false }));
+}
+/* ---- Documentos legales ---- */
+function brLegalBody(txt) {
+  return `<div class="legal">${String(txt || '').split('\n').map(l => { const s = l.trim(); const isH = s.length >= 5 && s.length <= 110 && !/\[/.test(s) && s === s.toUpperCase() && /[A-ZÁÉÍÓÚÑ]{3}/.test(s); return isH ? `<span class="h">${esc(s)}</span>` : esc(l); }).join('\n')}</div>`;
+}
+function legalHtml(d, opts = {}) {
+  return brDoc({ title: d.titulo, kicker: `${d.categoria} · v${d.version || '1.0'} · ${d.estado}`, h1: d.titulo, folio: [], body: brLegalBody(d.contenido), autoPrint: opts.autoPrint !== false });
+}
+/* Word: misma hoja membretada con el logo como imagen (Word no dibuja SVG en línea) */
+function brLogoPng(w = 420) {
+  return new Promise(res => {
+    const img = new Image(); const svg = brLogoH(w);
+    img.onload = () => { const c = document.createElement('canvas'); c.width = w; c.height = Math.round(w * 112 / 401.6); const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height); x.drawImage(img, 0, 0, c.width, c.height); try { res(c.toDataURL('image/png')); } catch (e) { res(''); } };
+    img.onerror = () => res('');
+    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+  });
+}
+async function legalWord(d) {
+  const D = brDatos(); const png = await brLogoPng(420);
+  const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" lang="es"><head><meta charset="UTF-8"><title>${esc(d.titulo)}</title>
+  <style>@page{size:21.59cm 27.94cm;margin:2cm}body{font-family:'DM Sans','Segoe UI',Arial,sans-serif;font-size:10.5pt;color:${BR.nogal};line-height:1.5}h1{font-family:Fraunces,Georgia,serif;font-weight:600;font-size:20pt;margin:4pt 0 10pt}.k{font-weight:bold;font-size:9pt;color:${BR.ambar700}}.ct{font-size:8.5pt;color:${BR.nogal500};text-align:right}.h{font-family:Fraunces,Georgia,serif;font-weight:600;font-size:11.5pt}p{margin:0 0 6pt}.pie{font-size:8pt;color:${BR.nogal500};border-top:1px solid ${BR.arena};padding-top:6pt;margin-top:24pt}</style></head><body>
+  <table width="100%" style="border-collapse:collapse;border-bottom:1px solid ${BR.arena}"><tr><td style="padding-bottom:10pt">${png ? `<img src="${png}" width="210" height="59" alt="CNC Manufacturing">` : `<b style="font-size:16pt">cnc manufacturing</b>`}</td><td class="ct" style="padding-bottom:10pt">${D.razon ? `<b>${esc(D.razon)}</b><br>` : ''}${D.rfc ? `RFC ${esc(D.rfc)}<br>` : ''}${esc(D.tel)}<br>${esc(D.web)}<br>${esc(D.ig)}</td></tr></table>
+  <p class="k" style="margin-top:14pt">${esc(d.categoria)} · v${esc(d.version || '1.0')} · ${esc(d.estado)}</p><h1>${esc(d.titulo)}</h1>
+  ${String(d.contenido || '').split('\n').map(l => { const s = l.trim(); if (!s) return '<p>&nbsp;</p>'; const isH = s.length >= 5 && s.length <= 110 && !/\[/.test(s) && s === s.toUpperCase() && /[A-ZÁÉÍÓÚÑ]{3}/.test(s); return isH ? `<p class="h">${esc(s)}</p>` : `<p>${esc(l)}</p>`; }).join('')}
+  <p class="pie">${esc(D.dir)} · <b>${esc(D.lema)}</b></p></body></html>`;
+  download(`${d.titulo.replace(/[\\/:*?"<>|]+/g, '-').slice(0, 80)}.doc`, '﻿' + html, 'application/msword');
+}
+/* ---- Datos de papelería (Ajustes) ---- */
+function openPapeleriaForm() {
+  const D = brDatos();
+  openForm({ title:'Papelería entregable', sub:'Datos del membrete de cotizaciones, recibos, informes y documentos legales', data: { ...D },
+    fields: [ { k:'razon', label:'Razón social (opcional)', ph:'Nombre legal que aparece en el membrete' }, { k:'rfc', label:'RFC (opcional)' },
+      { k:'tel', label:'Teléfono / WhatsApp', type:'tel' }, { k:'email', label:'Correo' }, { k:'web', label:'Sitio web' }, { k:'ig', label:'Instagram' },
+      { k:'dir', label:'Dirección (pie de página)', full:true }, { k:'lema', label:'Lema del pie', full:true }, { k:'gracias', label:'Frase de agradecimiento (cotizaciones)', full:true } ],
+    extra: `<div class="mt-3 flex gap-2"><button type="button" class="btn btn-sm" data-act="pap-preview">${ic('eye')}Ver membrete de muestra</button></div>`,
+    onSave: v => { updateSettings({ papeleria: v }); closeModal(); toast('Papelería actualizada', 'ok'); } });
+}
+function brPreview() {
+  const body = `<div class="panel grid2"><div><div class="lbl">Cliente</div><div class="val">Cliente de ejemplo</div></div><div><div class="lbl">Proyecto</div><div class="val">Estuche de madera con grabado láser</div></div></div>
+    <table class="t"><thead><tr><th>#</th><th>Descripción</th><th class="r">Cant.</th><th class="r">P. unitario</th><th class="r">Importe</th></tr></thead><tbody><tr><td>01</td><td>Estuche MDF 6 mm con tapa grabada</td><td class="r">50</td><td class="r">$185.00</td><td class="r">$9,250.00</td></tr><tr class="total"><td colspan="4" class="r"><b>Total</b></td><td class="r"><span class="tot-pill"><span class="dot"></span>$10,730.00</span></td></tr></tbody></table><p class="frase">${esc(brDatos().gracias)}</p>`;
+  brOpen(brDoc({ title: 'Membrete de muestra', kicker: 'Muestra de papelería', h1: 'Así se ven tus documentos', folio: ['COT-0000', `Fecha: ${fmtDate(today())}`], body, autoPrint: false, dot: false }));
+}
 
 document.addEventListener('click', e => {
   const el = e.target.closest('[data-act]');
@@ -2902,6 +3103,7 @@ document.addEventListener('input', e => {
   if (t.closest('#itemsRows') || t.id === 'fld_conIVA') updateItemsTotals();
   if (t.dataset.calc) calcQuick();
   if (t.dataset.lgk != null && t.closest('#lgForm')) { t.dataset.touched = '1'; legalGenCount(); if ($('#lgPreview') && $('#lgPreview').innerHTML) legalGenPreview(); }
+  if (t.dataset.qlSearch) { const q = t.value.toLowerCase().trim(); $$('#qlList [data-q]').forEach(b => { b.style.display = !q || b.dataset.q.includes(q) ? '' : 'none'; }); return; }
   if (t.dataset.expAvance) { const lbl = $('#exp_av_txt'); if (lbl) lbl.textContent = t.value + '%'; }
 });
 document.addEventListener('change', e => {
@@ -2920,6 +3122,7 @@ document.addEventListener('change', e => {
   if (t.dataset.hjTipo) { const p = getRec('hjPedidos', t.dataset.hjTipo); if (p && p.tipo !== t.value) { upsert('hjPedidos', { id:p.id, tipo:t.value, bitacora: hjLog(p, `Tipo: ${hjTipoLabel(p.tipo)} → ${hjTipoLabel(t.value)}`) }, { silent:true }); render(); openHJ(p.id); } return; }
   if (t.dataset.hjPrio) { const p = getRec('hjPedidos', t.dataset.hjPrio); if (p) { upsert('hjPedidos', { id:p.id, prioridad:t.value, bitacora: hjLog(p, `Prioridad: ${t.value}`) }, { silent:true }); render(); openHJ(p.id); } return; }
   if (t.dataset.lgCtx) { legalGenFill(); return; }
+  if (t.dataset.quotePick) { const c = getRec('cotizaciones', t.value); const cs = $('#fld_clienteId'); if (c && cs && !cs.value && c.clienteId) cs.value = c.clienteId; const n = $('#fld_nombre'); if (c && n && !n.value.trim()) n.value = c.concepto || ''; const k = document.querySelector('[name=_copyQuote]'); if (k && c) k.checked = true; return; }
   if (t.dataset.lgk != null && t.type === 'checkbox') { legalGenCount(); return; }
   if (t.dataset.disTarget) { ui.disTarget = t.value; render(); return; }
   if (t.id === 'disFileInput' && t.files.length) { const T = disParseTarget(); if (T) disAttach(T, Array.from(t.files), `Archivo de ${(disTool(ui.disTool) || { name:'diseño' }).name}`); return; }
