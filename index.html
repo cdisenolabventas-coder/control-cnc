@@ -2940,7 +2940,7 @@ function brDatos() {
   const s = db.settings, p = s.papeleria || {};
   return { empresa: s.empresa || 'CNC Manufacturing MX', razon: p.razon || '', rfc: p.rfc || '', tel: p.tel || s.whatsapp || '+52 33 3157 3952', web: p.web || 'cncmanufacturingmx.com', ig: p.ig || '@cncmanufacturingmx', email: p.email || '', dir: p.dir || 'Libertad 1597, Col. Agua Blanca Sur, C.P. 45235, Zapopan, Jal.', lema: p.lema || 'Hecho en México · Desde 2014', gracias: p.gracias || 'Gracias por confiar en el taller.' };
 }
-const BR_FONTS = `<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&family=Fraunces:ital,opsz,wght@0,9..144,600;1,9..144,500&display=swap" rel="stylesheet">`;
+const BR_FONTS = `<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&family=Barlow+Semi+Condensed:wght@500;600;700&display=swap" rel="stylesheet">`;
 const BR_CSS = `
   @page{size:letter;margin:16mm 18mm 18mm}
   *{box-sizing:border-box}
@@ -2954,8 +2954,8 @@ const BR_CSS = `
   .linea{height:1px;background:${BR.arena};margin:7mm 0 6mm}
   .enc{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;margin-bottom:5mm}
   .kick{font:700 9pt/1.3 'DM Sans',sans-serif;color:${BR.ambar700};letter-spacing:.02em}
-  h1{font:600 22pt/1.15 Fraunces,Georgia,serif;margin:2px 0 0;color:${BR.nogal}}
-  h2{font:600 14pt/1.25 Fraunces,Georgia,serif;margin:0 0 3mm;color:${BR.nogal}}
+  h1{font:700 23pt/1.1 'Barlow Semi Condensed','Arial Narrow',Arial,sans-serif;letter-spacing:.005em;margin:2px 0 0;color:${BR.nogal}}
+  h2{font:600 14pt/1.25 'Barlow Semi Condensed','Arial Narrow',Arial,sans-serif;margin:0 0 3mm;color:${BR.nogal}}
   .folio{text-align:right;font-size:9pt;color:${BR.nogal500};line-height:1.6}
   .folio .num{font:700 13pt/1.2 'DM Sans',sans-serif;color:${BR.nogal};display:flex;align-items:center;gap:6px;justify-content:flex-end}
   .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:${BR.brasa}}
@@ -2972,10 +2972,10 @@ const BR_CSS = `
   .r,table.t th.r{text-align:right;white-space:nowrap} .num{font-variant-numeric:tabular-nums}
   .tot-pill{display:inline-flex;align-items:center;gap:7px;background:${BR.hueso};border-radius:999px;padding:1.6mm 4mm;font-weight:700}
   .nota{font-size:9pt;color:${BR.nogal700};white-space:pre-line}
-  .frase{font:italic 500 13pt/1.4 Fraunces,Georgia,serif;color:${BR.nogal700};margin:6mm 0 0}
+  .frase{font:500 13pt/1.4 'Barlow Semi Condensed','Arial Narrow',Arial,sans-serif;color:${BR.nogal700};margin:6mm 0 0}
   .firmas{display:flex;gap:14mm;margin-top:18mm} .firmas div{flex:1;border-top:1px solid ${BR.nogal};padding-top:2mm;text-align:center;font-size:9pt}
   .legal{font:400 10.5pt/1.6 'DM Sans',sans-serif;white-space:pre-wrap}
-  .legal .h{display:block;font:600 11.5pt/1.4 Fraunces,Georgia,serif;margin:4mm 0 1mm}
+  .legal .h{display:block;font:600 11.5pt/1.4 'Barlow Semi Condensed','Arial Narrow',Arial,sans-serif;margin:4mm 0 1mm}
   .pie{margin-top:auto;padding-top:8mm;display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:7.8pt;color:${BR.nogal500}}
   .pie b{color:${BR.nogal}}
   .pie .sello{display:flex;align-items:center;gap:6px}
@@ -3066,7 +3066,7 @@ function brLogoPng(w = 420) {
 async function legalWord(d) {
   const D = brDatos(); const png = await brLogoPng(420);
   const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" lang="es"><head><meta charset="UTF-8"><title>${esc(d.titulo)}</title>
-  <style>@page{size:21.59cm 27.94cm;margin:2cm}body{font-family:'DM Sans','Segoe UI',Arial,sans-serif;font-size:10.5pt;color:${BR.nogal};line-height:1.5}h1{font-family:Fraunces,Georgia,serif;font-weight:600;font-size:20pt;margin:4pt 0 10pt}.k{font-weight:bold;font-size:9pt;color:${BR.ambar700}}.ct{font-size:8.5pt;color:${BR.nogal500};text-align:right}.h{font-family:Fraunces,Georgia,serif;font-weight:600;font-size:11.5pt}p{margin:0 0 6pt}.pie{font-size:8pt;color:${BR.nogal500};border-top:1px solid ${BR.arena};padding-top:6pt;margin-top:24pt}</style></head><body>
+  <style>@page{size:21.59cm 27.94cm;margin:2cm}body{font-family:'DM Sans','Segoe UI',Arial,sans-serif;font-size:10.5pt;color:${BR.nogal};line-height:1.5}h1{font-family:'Barlow Semi Condensed','Arial Narrow',Arial,sans-serif;font-weight:700;font-size:21pt;margin:4pt 0 10pt}.k{font-weight:bold;font-size:9pt;color:${BR.ambar700}}.ct{font-size:8.5pt;color:${BR.nogal500};text-align:right}.h{font-family:'Barlow Semi Condensed','Arial Narrow',Arial,sans-serif;font-weight:600;font-size:11.5pt}p{margin:0 0 6pt}.pie{font-size:8pt;color:${BR.nogal500};border-top:1px solid ${BR.arena};padding-top:6pt;margin-top:24pt}</style></head><body>
   <table width="100%" style="border-collapse:collapse;border-bottom:1px solid ${BR.arena}"><tr><td style="padding-bottom:10pt">${png ? `<img src="${png}" width="210" height="59" alt="CNC Manufacturing">` : `<b style="font-size:16pt">cnc manufacturing</b>`}</td><td class="ct" style="padding-bottom:10pt">${D.razon ? `<b>${esc(D.razon)}</b><br>` : ''}${D.rfc ? `RFC ${esc(D.rfc)}<br>` : ''}${esc(D.tel)}<br>${esc(D.web)}<br>${esc(D.ig)}</td></tr></table>
   <p class="k" style="margin-top:14pt">${esc(d.categoria)} · v${esc(d.version || '1.0')} · ${esc(d.estado)}</p><h1>${esc(d.titulo)}</h1>
   ${String(d.contenido || '').split('\n').map(l => { const s = l.trim(); if (!s) return '<p>&nbsp;</p>'; const isH = s.length >= 5 && s.length <= 110 && !/\[/.test(s) && s === s.toUpperCase() && /[A-ZÁÉÍÓÚÑ]{3}/.test(s); return isH ? `<p class="h">${esc(s)}</p>` : `<p>${esc(l)}</p>`; }).join('')}
